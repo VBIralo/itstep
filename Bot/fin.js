@@ -1,35 +1,54 @@
-var fs = require("fs")
-const path = require("path"); // Подключаю библиотеку path
-var envPath = path.join(__dirname, ".env") // создает переменную envPath, которая содержит путь к файлу .env. __dirname - это глобальная переменная в Node.js, которая представляет путь к текущей директории, в которой находится исполняемый файл.
-require("dotenv").config({ path: envPath }) //  загружает содержимое файла .env и помещает его в переменные окружения. Модуль dotenv позволяет загружать переменные окружения из файла .env в процесс Node.js
-const { telegramToken, lpTrackerToken } = process.env // Деструктуризация telegramToken и lpTrackerToken изenv файла
-
-
-const fetch = require('node-fetch'); // Подключаю библиотеку запросов
-const { Scenes, session, Telegraf } = require('telegraf'); // Подключаю библиотеку Telegraf
-const bot = new Telegraf(telegramToken); // создает новый экземпляр класса Telegraf и присваивает его переменной bot. В скобках (telegramToken) указывается аргумент, который передается в конструктор класса
-var ordersPath = path.join(__dirname, "orders.json");
+const fs = require("fs");
+const path = require("path");
+const fetch = require('node-fetch');
 const cron = require('node-cron');
+const { Scenes, session, Telegraf } = require('telegraf');
+
+// Подключение библиотеки dotenv и загрузка переменных окружения
+const envPath = path.join(__dirname, ".env");
+require("dotenv").config({ path: envPath });
+
+// Деструктуризация переменных окружения
+const { telegramToken, lpTrackerToken } = process.env;
+
+// Создание экземпляра Telegraf и указание токена
+const bot = new Telegraf(telegramToken);
+
+// Определение путей к файлам
+const ordersPath = path.join(__dirname, "orders.json");
+
+// Подключение сцен для использования в Stage
 const payScene = require("./scenes/payScene");
 const lookScene = require("./scenes/lookScene");
-
 const stage = new Scenes.Stage([payScene, lookScene]);
 
+// Использование сцен и middleware
 bot.use(payScene, lookScene);
 bot.use(stage.middleware());
 
-var workers = require("./workers.json");
-const order = { name: "Дмитрий Митин", name: "Мама" };
-const chatId = workers.find(object => object.name === order.name).chatId;
-// (async function () {
-//     bot.launch();
-//     await bot.telegram.sendMessage(chatId, { text: "Not inline button" }, { reply_markup: { keyboard: [[{ text: "Неоплаченные заказы" }], [{ text: "Заказы на сегодня" }], [{ text: "Заказы на завтра" }], [{ text: "Архив заказов" }], [{ text: "Свободные заказы" }], [{ text: "Связаться с менеджером" }]] } });
-// })();
+// Загрузка данных из workers.json
+const workers = require("./workers.json");
 
-bot.launch();
+// Пример объекта заказа
+const order = { name: "Дмитрий Митин", name: "Мама" };
+
+// Получение chatId из workers.json
+const chatId = workers.find(object => object.name === order.name).chatId;
+
+
 
 bot.start(async (ctx) => {
-    ctx.reply('Компания Cleaning Moscow благодарит вас за регистрацию узнать информацию о пользовании ботом можно нажав команду /help', { reply_markup: { keyboard: [[{ text: "Неоплаченные заказы" }], [{ text: "Заказы на сегодня" }], [{ text: "Заказы на завтра" }], [{ text: "Архив заказов" }], [{ text: "Свободные заказы" }], [{ text: "Связаться с менеджером" }]] } })
+    ctx.reply('Компания Cleaning Moscow благодарит вас за регистрацию узнать информацию о пользовании ботом можно нажав команду /help',
+        {
+            reply_markup: {
+                keyboard: [[{ text: "Неоплаченные заказы" }],
+                [{ text: "Заказы на сегодня" }],
+                [{ text: "Заказы на завтра" }],
+                [{ text: "Архив заказов" }],
+                [{ text: "Свободные заказы" }],
+                [{ text: "Связаться с менеджером" }]]
+            }
+        })
 })
 
 bot.help(async (ctx) => {
@@ -113,15 +132,15 @@ bot.hears('Заказы на сегодня', async (ctx) => {
         if (month < 10) month = "0" + month
         var year = time.getFullYear()
 
-// var hour = time.getHours() 
-// if (hour < 10) hour = "0" + hour
-// var minute = time.getMinutes() 
-// if (minute < 10) minute = "0" + minute
+        // var hour = time.getHours() 
+        // if (hour < 10) hour = "0" + hour
+        // var minute = time.getMinutes() 
+        // if (minute < 10) minute = "0" + minute
 
-var timeNow = `${date}.${month}.${year}`
-// console.log(timeNow)
+        var timeNow = `${date}.${month}.${year}`
+        // console.log(timeNow)
 
-       data.result.forEach(function (item) {
+        data.result.forEach(function (item) {
             // var idList = item.id.toString();
             var address = item.custom.find(object => object.name == 'Адрес');
             var dateOne = item.custom.find(object => object.name == 'Дата выполнения сделки').value;
@@ -132,8 +151,8 @@ var timeNow = `${date}.${month}.${year}`
             var phone = item.contact.details.find(detail => detail.type === 'phone').data;
             var name = item.contact.name;
             var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-            if(timeNow === dateOneA){
-            var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs;// объединяем id и адрес в одну строку
+            if (timeNow === dateOneA) {
+                var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs;// объединяем id и адрес в одну строку
             }
             ctx.reply(message).catch(err => console.log(err));
         });
@@ -141,7 +160,7 @@ var timeNow = `${date}.${month}.${year}`
     } catch (error) {
         console.log("Ошибка при получении данных из LPTracker: " + error);
     }
-}); 
+});
 
 bot.hears('Заказы на завтра', async (ctx) => {
     try {
@@ -150,22 +169,22 @@ bot.hears('Заказы на завтра', async (ctx) => {
         // console.log(data.result.custom);
 
         var time = new Date()
-var date = time.getDate() + 1
-if (date < 10) date = "0" + date
-var month = time.getMonth() + 1
-if (month == 13) month = 1
-if (month < 10) month = "0" + month
-var year = time.getFullYear()
+        var date = time.getDate() + 1
+        if (date < 10) date = "0" + date
+        var month = time.getMonth() + 1
+        if (month == 13) month = 1
+        if (month < 10) month = "0" + month
+        var year = time.getFullYear()
 
-// var hour = time.getHours() 
-// if (hour < 10) hour = "0" + hour
-// var minute = time.getMinutes() 
-// if (minute < 10) minute = "0" + minute
+        // var hour = time.getHours() 
+        // if (hour < 10) hour = "0" + hour
+        // var minute = time.getMinutes() 
+        // if (minute < 10) minute = "0" + minute
 
-var timeNow = `${date}.${month}.${year}`
-// console.log(timeNow)
+        var timeNow = `${date}.${month}.${year}`
+        // console.log(timeNow)
 
-       data.result.forEach(function (item) {
+        data.result.forEach(function (item) {
             // var idList = item.id.toString();
             var address = item.custom.find(object => object.name == 'Адрес');
             var dateOne = item.custom.find(object => object.name == 'Дата выполнения сделки').value;
@@ -176,8 +195,8 @@ var timeNow = `${date}.${month}.${year}`
             var phone = item.contact.details.find(detail => detail.type === 'phone').data;
             var name = item.contact.name;
             var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-            if(timeNow === dateOneA){
-            var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs;// объединяем id и адрес в одну строку
+            if (timeNow === dateOneA) {
+                var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs;// объединяем id и адрес в одну строку
             }
             ctx.reply(message).catch(err => console.log(err));
         });
@@ -189,6 +208,7 @@ var timeNow = `${date}.${month}.${year}`
 
 bot.hears('Архив заказов', async (ctx) => {
     try {
+        // Сделать постраничный вывод
         const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
         const data = await response.json(); // Преобразование ответа в JSON 
 
@@ -698,3 +718,6 @@ const forManager = '52 17 * * *'; // Каждую минуту
 
 // Запускаем cron по расписанию
 cron.schedule(forManager, forManagerFunction);
+
+
+bot.launch();

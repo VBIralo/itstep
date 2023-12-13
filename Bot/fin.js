@@ -21,10 +21,12 @@ bot.use(stage.middleware());
 var workers = require("./workers.json");
 const order = { name: "Дмитрий Митин", name: "Мама" };
 const chatId = workers.find(object => object.name === order.name).chatId;
-(async function () {
-    bot.launch();
-    await bot.telegram.sendMessage(chatId, { text: "Not inline button" }, { reply_markup: { keyboard: [[{ text: "Неоплаченные заказы" }], [{ text: "Заказы на сегодня" }], [{ text: "Заказы на завтра" }], [{ text: "Архив заказов" }], [{ text: "Свободные заказы" }], [{ text: "Связаться с менеджером" }]] } });
-})();
+// (async function () {
+//     bot.launch();
+//     await bot.telegram.sendMessage(chatId, { text: "Not inline button" }, { reply_markup: { keyboard: [[{ text: "Неоплаченные заказы" }], [{ text: "Заказы на сегодня" }], [{ text: "Заказы на завтра" }], [{ text: "Архив заказов" }], [{ text: "Свободные заказы" }], [{ text: "Связаться с менеджером" }]] } });
+// })();
+
+bot.launch();
 
 bot.start(async (ctx) => {
     ctx.reply('Компания Cleaning Moscow благодарит вас за регистрацию узнать информацию о пользовании ботом можно нажав команду /help', { reply_markup: { keyboard: [[{ text: "Неоплаченные заказы" }], [{ text: "Заказы на сегодня" }], [{ text: "Заказы на завтра" }], [{ text: "Архив заказов" }], [{ text: "Свободные заказы" }], [{ text: "Связаться с менеджером" }]] } })
@@ -183,51 +185,44 @@ var timeNow = `${date}.${month}.${year}`
     } catch (error) {
         console.log("Ошибка при получении данных из LPTracker: " + error);
     }
-}); 
+});
 
 bot.hears('Архив заказов', async (ctx) => {
     try {
         const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
         const data = await response.json(); // Преобразование ответа в JSON 
-        // console.log(data.result.custom);
 
-        var time = new Date()
-var date = time.getDate() + 1
-if (date < 10) date = "0" + date
-var month = time.getMonth() + 1
-if (month == 13) month = 1
-if (month < 10) month = "0" + month
-var year = time.getFullYear()
+        let message = '20 последних заказов:';
 
-// var hour = time.getHours() 
-// if (hour < 10) hour = "0" + hour
-// var minute = time.getMinutes() 
-// if (minute < 10) minute = "0" + minute
+        const responseOut = data.result.map(item => {
+            const order = {
+                idList: item.id.toString(),
+                address: item.custom.find(object => object.name == 'Адрес').value ?? 'не указано',
+                dateOne: item.custom.find(object => object.name == 'Дата выполнения сделки').value ?? 'не указано',
+                dateOneA: item.custom.find(object => object.name == 'Дата выполнения сделки').value?.split(' ')[0] ?? 'не указано',
+                dateForFilter: item.custom.find(object => object.name == 'Дата выполнения сделки').value?.split(' ')[0].split('.').reverse().join('-') ?? null,
+                phone: item.contact?.details.find(detail => detail.type == 'phone').data ?? 'не указано',
+                name: item.contact?.name ?? 'не указано',
+                parametrs: item.custom.find(object => object.name == 'Важная информация').value ?? 'не указано'
 
-var timeNow = `${date}.${month}.${year}`
-// console.log(timeNow)
-
-       data.result.forEach(function (item) {
-            // var idList = item.id.toString();
-            var address = item.custom.find(object => object.name == 'Адрес');
-            var dateOne = item.custom.find(object => object.name == 'Дата выполнения сделки').value;
-            let dateOneA = dateOne.split('').slice(0, -6).join('');
-            // console.log(dateOneA);
-            // let dateOneB = dateOneA.slice(0, -6);
-            // let dateOneC = dateOneB.join('');
-            var phone = item.contact.details.find(detail => detail.type === 'phone').data;
-            var name = item.contact.name;
-            var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-            if(timeNow < dateOneA && timeNow !== dateOneA){
-            var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs;// объединяем id и адрес в одну строку
             }
-            ctx.reply(message).catch(err => console.log(err));
+
+            if (order.dateForFilter && new Date() > new Date(order.dateForFilter)) {
+                message += '\n\nИмя клиента: ' + order.name + '\nАдрес: ' + order.address + '\nТелефон: ' + order.phone + '\nДата и время заказа: ' + order.dateOne + '\nПараметры заказа: ' + order.parametrs;
+                //console.log(message)
+            }
+        })
+
+        return Promise.all(responseOut).then(() => {
+            ctx.reply(message)
         });
+
+
 
     } catch (error) {
         console.log("Ошибка при получении данных из LPTracker: " + error);
     }
-}); 
+});
 
 bot.hears('Свободные заказы', async (ctx) => {
     try {
@@ -407,7 +402,7 @@ async function scheduledFunction(ctx) {
             var address = item.custom.find(object => object.name == 'Адрес');
             var dateOne = item.custom.find(object => object.name == 'Дата выполнения сделки').value;
             var phone = item.contact?.details?.find(detail => detail.type === 'phone').data;
-            var name = item.contact.name;
+            var name = item.contact?.name;
             var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
 
             if (String(dateOne) === String(timeNow)) {

@@ -9,7 +9,7 @@ const { promisify } = require("util");
 const writeFilePromise = promisify(fs.writeFile);
 
 const lookScene = new Scenes.BaseScene("lookScene")
-
+/*
 lookScene.enter(ctx => ctx.reply("Отправьте фото внешнего вида"))
 
 lookScene.on('photo', async (ctx) => {
@@ -53,3 +53,4 @@ async function downloadFile(url, outputPath) {
 }
 
 module.exports = lookScene
+*/

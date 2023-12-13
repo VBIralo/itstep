@@ -9,7 +9,7 @@ const { promisify } = require("util");
 const writeFilePromise = promisify(fs.writeFile);
 
 const payScene = new Scenes.BaseScene("payScene")
-
+/*
 payScene.enter(ctx => ctx.reply("Отправьте фото чека"))
 
 payScene.on('photo', async (ctx) => { // Отправка фото
@@ -56,3 +56,4 @@ async function downloadFile(url, outputPath) {
 }
 
 module.exports = payScene
+*/

@@ -69,7 +69,7 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
                 console.log('id', id, custom.find(object => object.name === 'Чек').value)
                 const address = custom.find(object => object.name === 'Адрес');
                 const check = custom.find(object => object.name === 'Чек').value;
-                const phone = contact.details.find(detail => detail.type === 'phone').data;
+                const phone = contact.details.find(detail => detail.type === 'phone')?.data ?? 'не указано';
                 const executor = custom.find(object => object.name === 'Исполнитель')?.value ?? 'не указано';
                 const name = contact.name;
                 const parameters = custom.find(object => object.name === 'Важная информация').value;
@@ -81,7 +81,7 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
 
                     const inlineKeyboard = {
                         inline_keyboard: [
-                            [{ text: 'Добавить фото чека', callback_data: 'add_photo_check_callback_' + id }]
+                            [{ text: 'Добавить фото чека', callback_data: 'add_receipt_photo_' + id }]
                         ]
                     };
 
@@ -376,9 +376,6 @@ cron.schedule('58 15 * * *', async () => {
 
 
 
-
-let idLead; // Объявите переменную idLead в доступной области видимости
-
 async function scheduledFunction(ctx) {
     try {
         var time = new Date();
@@ -401,7 +398,7 @@ async function scheduledFunction(ctx) {
         const data = await response.json();
 
         data.result.forEach(function (item) {
-            var idLead = item.id;
+            var leadId = item.id;
             var address = item.custom.find(object => object.name == 'Адрес');
             var dateOne = item.custom.find(object => object.name == 'Дата выполнения сделки').value;
             var phone = item.contact?.details?.find(detail => detail.type === 'phone').data;
@@ -409,13 +406,13 @@ async function scheduledFunction(ctx) {
             var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
 
             if (String(dateOne) === String(timeNow)) {
-                var message = 'ID: ' + idLead + '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs;
-                var message2 = idLead;
+                var message = 'ID: ' + leadId + '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs;
+                var message2 = leadId;
                 const inlineKeyboard = {
                     inline_keyboard: [
-                        [{ text: 'Добавить фото внешнего вида', callback_data: 'look' }],
+                        [{ text: 'Добавить фото внешнего вида', callback_data: 'add_appearance_photo_' + leadId }],
                         [{ text: 'Не могу отправить фото внешнего вида', callback_data: 'not_send_outfit' }],
-                        [{ text: 'Отправить фото чека', callback_data: 'add_photo_check_callback' }],
+                        [{ text: 'Отправить фото чека', callback_data: 'add_receipt_photo_' + leadId }]
                         [{ text: 'Не могу отправить фото чека', callback_data: 'notSendCheck' }],
                         [{ text: 'Памятка', callback_data: 'remember' }]
                     ]
@@ -437,59 +434,34 @@ const cronSchedule = '*/1 * * * *'; // Каждую минуту
 // Запускаем cron по расписанию
 cron.schedule(cronSchedule, scheduledFunction);
 
-bot.action(/add_photo_check_callback_(\d+)/g, (ctx) => {
+bot.action(/add_receipt_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
-    setSessionStep(ctx.update.callback_query.from.id, 'photo_receipt_' + leadId);
+    setSessionStep(ctx.update.callback_query.from.id, 'receipt_photo_' + leadId);
+    ctx.reply('Пришлите фото чека');
+});
+
+bot.action(/add_appearance_photo_(\d+)/g, (ctx) => {
+    const leadId = ctx.match[1];
+    setSessionStep(ctx.update.callback_query.from.id, 'appearance_photo_' + leadId);
     ctx.reply('Пришлите фото чека');
 });
 
 bot.on('photo', async (ctx) => {
     const sessionStep = sessions[ctx.message.from.id].step
-    const regExpReceipt = /photo_receipt_(\d+)/;
-
-    console.log('photo', sessionStep, regExpReceipt.test(sessionStep), sessionStep.match(regExpReceipt)[1])
+    const regExpReceipt = /receipt_photo_(\d+)/;
+    const regExpAppearence = /appearance_photo_(\d+)/;
 
     if (regExpReceipt.test(sessionStep)) {
         const leadId = sessionStep.match(regExpReceipt)[1];
 
-        try {
-            // Обработка фотографии чека
-            const fileData = await ctx.telegram.getFile(ctx.message.photo.reverse()[0].file_id);
-            const fileLink = await ctx.telegram.getFileLink(fileData.file_id);
-            const fileResponse = await fetch(fileLink);
-            const fileBuffer = await fileResponse.buffer();
+        uploadTelegramPhotoToLPTracker(ctx, leadId, 'receipt');
+    };
 
-            const base64Data = fileBuffer.toString('base64');
-            console.log(fileData.file_path)
-            const data = {
-                name: fileData.file_path.split('/')[1],
-                mime: 'image/jpeg',
-                data: base64Data,
-                custom_field_id: 2079688 // Используйте другой custom_field_id  - для чеков 2079688
-            };
+    if (regExpAppearence.test(sessionStep)) {
+        const leadId = sessionStep.match(regExpAppearence)[1];
 
-            const uploadResponse = await fetch(`https://direct.lptracker.ru/lead/${leadId}/file`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'token': lpTrackerToken
-                },
-                body: JSON.stringify(data)
-            });
-
-            const result = await uploadResponse.json();
-            console.log('Результат:', result);
-            if (result?.status == 'success') {
-                ctx.reply("Фотография успешно загружена")
-                    .then(setSessionStep(ctx.message.from.id, null))
-            } else {
-                console.error('Ошибка при отправке запроса:', error)
-                ctx.reply('Произошла ошибка при загрузке фото чека')
-            }
-        } catch (error) {
-            console.error('Ошибка при загрузке фото чека:', error)
-        }
-    }
+        uploadTelegramPhotoToLPTracker(ctx, leadId, 'appearance');
+    };
 });
 
 
@@ -720,3 +692,52 @@ cron.schedule(forManager, forManagerFunction);
 
 
 bot.launch();
+
+/**
+ * Загружает фотографию из телеграма на LPTracker.
+ *
+ * @param {Object} ctx - Контекст Telegraf, содержащий информацию о сообщении.
+ * @param {number} leadId - Идентификатор лида на LPTracker.
+ * @param {'receipt'|'appearance'} type - Тип фотографии ('receipt' либо 'appearance').
+ * @returns {Promise<void>} - Промис, который разрешается после завершения загрузки фотографии.
+ * @throws {Error} - Выбрасывает ошибку в случае неудачной загрузки.
+ */
+const uploadTelegramPhotoToLPTracker = async (ctx, leadId, type) => {
+    try {
+        const fileData = await ctx.telegram.getFile(ctx.message.photo.reverse()[0].file_id);
+        const fileLink = await ctx.telegram.getFileLink(fileData.file_id);
+        const fileResponse = await fetch(fileLink);
+        const fileBuffer = await fileResponse.buffer();
+    
+        const base64Data = fileBuffer.toString('base64');
+        console.log(fileData.file_path)
+        const data = {
+            name: fileData.file_path.split('/')[1],
+            mime: 'image/jpeg',
+            data: base64Data,
+            custom_field_id: type === 'receipt' ? 2079688 : 2116594  // для чеков - 2079688 | для внешнего вида - 2116594
+        };
+    
+        const uploadResponse = await fetch(`https://direct.lptracker.ru/lead/${leadId}/file`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'token': lpTrackerToken
+            },
+            body: JSON.stringify(data)
+        });
+    
+        const result = await uploadResponse.json();
+        console.log('Результат:', result);
+    
+        if (result?.status == 'success') {
+            ctx.reply("Фотография успешно загружена")
+                .then(setSessionStep(ctx.message.from.id, null));
+        } else {
+            console.error('Ошибка при загрузке фото:', type, error)
+            ctx.reply('Произошла ошибка при загрузке фото ' + type === 'receipt' ? 'чека' : 'внешнего вида');
+        }
+    } catch (error) {
+        console.error('Ошибка при загрузке фото:', type, error)
+    }
+}

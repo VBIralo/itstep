@@ -38,6 +38,10 @@ const chatId = workers.find(object => object.name === order.name).chatId;
 const adminId = 211382461;
 const isDev = true;
 
+// вывод заказов с даты - 01 Jan 2023 00:00:00 GMT
+const createdAtDate = 1672531200;
+
+
 
 
 bot.start(async (ctx) => {
@@ -61,7 +65,7 @@ bot.help(async (ctx) => {
 bot.hears('Неоплаченные заказы', async (ctx) => {
 
     try {
-        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=100&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
+        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=100&sort[updated_at]=3&filter[created_at_from]=" + createdAtDate, { headers: { token: lpTrackerToken } });
         const data = await response.json();
 
         if (data.result && data.result.length > 0) {
@@ -70,11 +74,12 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
                 const address = custom.find(object => object.name === 'Адрес');
                 const check = custom.find(object => object.name === 'Чек').value;
                 const phone = contact.details.find(detail => detail.type === 'phone')?.data ?? 'не указано';
+                const date = custom.find(object => object.name == 'Дата выполнения сделки').value ?? 'не указано';
                 const executor = custom.find(object => object.name === 'Исполнитель')?.value ?? 'не указано';
                 const name = contact.name;
                 const parameters = custom.find(object => object.name === 'Важная информация').value;
 
-                let message = `Имя клиента: ${name}\nАдрес клиента: ${address.value}\nТелефон клиента: ${phone}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
+                let message = `Имя клиента: ${name}\nАдрес клиента: ${address.value}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
 
                 if (check === null) {
                     message += '\n\nФото чека не добавлено';
@@ -102,42 +107,43 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
 
 
 bot.hears('Заказы на сегодня', async (ctx) => {
+
     try {
-        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
-        const data = await response.json(); // Преобразование ответа в JSON 
-        // console.log(data.result.custom);
+        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=100&sort[updated_at]=3&filter[created_at_from]=" + createdAtDate, { headers: { token: lpTrackerToken } });
+        const data = await response.json();
 
-        var time = new Date()
-        var date = time.getDate()
-        if (date < 10) date = "0" + date
-        var month = time.getMonth() + 1
-        if (month == 13) month = 1
-        if (month < 10) month = "0" + month
-        var year = time.getFullYear()
+        // Получаем текущую дату
+        const today = new Date();
+        const formattedToday = today.toLocaleDateString('en-GB', localeDateStringParams);
 
-        // var hour = time.getHours() 
-        // if (hour < 10) hour = "0" + hour
-        // var minute = time.getMinutes() 
-        // if (minute < 10) minute = "0" + minute
+        // Фильтруем заказы, оставляем только те, у которых дата создания совпадает с сегодняшним днем
+        const ordersForToday = data.result.filter(order => {
+            const orderDateString = order.custom.find(object => object.name == 'Дата выполнения сделки').value;
+            if (!orderDateString) return;
+            const orderDate = parseDate(orderDateString);
+            const formattedOrderDate = orderDate.toLocaleDateString('en-GB', localeDateStringParams);
+            return formattedOrderDate === formattedToday;
+        });
 
-        var timeNow = `${date}.${month}.${year}`
-        // console.log(timeNow)
+        console.log(ordersForToday.length)
 
-        data.result.forEach(function (item) {
-            // var idList = item.id.toString();
-            var address = item.custom.find(object => object.name == 'Адрес');
-            var dateOne = item.custom.find(object => object.name == 'Дата выполнения сделки').value;
-            let dateOneA = dateOne.split('').slice(0, -6).join('');
-            // console.log(dateOneA);
-            // let dateOneB = dateOneA.slice(0, -6);
-            // let dateOneC = dateOneB.join('');
-            var phone = item.contact.details.find(detail => detail.type === 'phone').data;
-            var name = item.contact.name;
-            var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-            if (timeNow === dateOneA) {
-                var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs;// объединяем id и адрес в одну строку
-            }
-            ctx.reply(message).catch(err => console.log(err));
+        if (ordersForToday && ordersForToday.length === 0) return ctx.reply('Заказов на сегодня нет');
+
+        let message = 'На сегодня заказов - ' + ordersForToday.length;
+
+        const responseOut = ordersForToday.map(({ custom, contact }) => {
+            const address = custom.find(object => object.name === 'Адрес') ?? 'не указано';
+            const phone = contact.details.find(detail => detail.type === 'phone')?.data ?? 'не указано';
+            const date = custom.find(object => object.name == 'Дата выполнения сделки').value ?? 'не указано';
+            const executor = custom.find(object => object.name === 'Исполнитель')?.value ?? 'не указано';
+            const name = contact.name;
+            const parameters = custom.find(object => object.name === 'Важная информация').value ?? 'не указано';
+
+            message += `\n\nИмя клиента: ${name}\nАдрес клиента: ${address.value}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
+        });
+
+        return Promise.all(responseOut).then(() => {
+            ctx.reply(message)
         });
 
     } catch (error) {
@@ -147,41 +153,43 @@ bot.hears('Заказы на сегодня', async (ctx) => {
 
 bot.hears('Заказы на завтра', async (ctx) => {
     try {
-        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
-        const data = await response.json(); // Преобразование ответа в JSON 
-        // console.log(data.result.custom);
+        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=100&sort[updated_at]=3&filter[created_at_from]=" + createdAtDate, { headers: { token: lpTrackerToken } });
+        const data = await response.json();
 
-        var time = new Date()
-        var date = time.getDate() + 1
-        if (date < 10) date = "0" + date
-        var month = time.getMonth() + 1
-        if (month == 13) month = 1
-        if (month < 10) month = "0" + month
-        var year = time.getFullYear()
+        // Получаем завтрашнюю дату
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const localeDateStringParams = { day: '2-digit', month: '2-digit', year: 'numeric' };
+        const formattedTomorrow = tomorrow.toLocaleDateString('en-GB', localeDateStringParams);
 
-        // var hour = time.getHours() 
-        // if (hour < 10) hour = "0" + hour
-        // var minute = time.getMinutes() 
-        // if (minute < 10) minute = "0" + minute
+        // Фильтруем заказы, оставляем только те, у которых дата создания совпадает с завтрашним днем
+        const ordersForTomorrow = data.result.filter(order => {
+            const orderDateString = order.custom.find(object => object.name === 'Дата выполнения сделки').value;
+            if (!orderDateString) return;
+            const orderDate = parseDate(orderDateString);
+            const formattedOrderDate = orderDate.toLocaleDateString('en-GB', localeDateStringParams);
+            return formattedOrderDate === formattedTomorrow;
+        });
 
-        var timeNow = `${date}.${month}.${year}`
-        // console.log(timeNow)
+        console.log(ordersForTomorrow.length)
 
-        data.result.forEach(function (item) {
-            // var idList = item.id.toString();
-            var address = item.custom.find(object => object.name == 'Адрес');
-            var dateOne = item.custom.find(object => object.name == 'Дата выполнения сделки').value;
-            let dateOneA = dateOne.split('').slice(0, -6).join('');
-            // console.log(dateOneA);
-            // let dateOneB = dateOneA.slice(0, -6);
-            // let dateOneC = dateOneB.join('');
-            var phone = item.contact.details.find(detail => detail.type === 'phone').data;
-            var name = item.contact.name;
-            var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-            if (timeNow === dateOneA) {
-                var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs;// объединяем id и адрес в одну строку
-            }
-            ctx.reply(message).catch(err => console.log(err));
+        if (ordersForTomorrow && ordersForTomorrow.length === 0) return ctx.reply('Заказов на сегодня нет');
+
+        let message = 'На завтра заказов - ' + ordersForTomorrow.length;
+
+        const responseOut = ordersForTomorrow.map(({ custom, contact }) => {
+            const address = custom.find(object => object.name === 'Адрес') ?? 'не указано';
+            const phone = contact.details.find(detail => detail.type === 'phone')?.data ?? 'не указано';
+            const date = custom.find(object => object.name == 'Дата выполнения сделки').value ?? 'не указано';
+            const executor = custom.find(object => object.name === 'Исполнитель')?.value ?? 'не указано';
+            const name = contact.name;
+            const parameters = custom.find(object => object.name === 'Важная информация').value ?? 'не указано';
+
+            message += `\n\nИмя клиента: ${name}\nАдрес клиента: ${address.value}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
+        });
+
+        return Promise.all(responseOut).then(() => {
+            ctx.reply(message)
         });
 
     } catch (error) {
@@ -220,8 +228,6 @@ bot.hears('Архив заказов', async (ctx) => {
             ctx.reply(message)
         });
 
-
-
     } catch (error) {
         console.log("Ошибка при получении данных из LPTracker: " + error);
     }
@@ -259,6 +265,8 @@ bot.hears('Свободные заказы', async (ctx) => {
         console.log("Ошибка при получении данных из LPTracker: " + error);
     }
 });
+
+// ТАЙМЕРЫ
 
 
 // cron.schedule('7 11 * * *', () => {
@@ -708,7 +716,7 @@ const uploadTelegramPhotoToLPTracker = async (ctx, leadId, type) => {
         const fileLink = await ctx.telegram.getFileLink(fileData.file_id);
         const fileResponse = await fetch(fileLink);
         const fileBuffer = await fileResponse.buffer();
-    
+
         const base64Data = fileBuffer.toString('base64');
         console.log(fileData.file_path)
         const data = {
@@ -717,7 +725,7 @@ const uploadTelegramPhotoToLPTracker = async (ctx, leadId, type) => {
             data: base64Data,
             custom_field_id: type === 'receipt' ? 2079688 : 2116594  // для чеков - 2079688 | для внешнего вида - 2116594
         };
-    
+
         const uploadResponse = await fetch(`https://direct.lptracker.ru/lead/${leadId}/file`, {
             method: 'POST',
             headers: {
@@ -726,10 +734,10 @@ const uploadTelegramPhotoToLPTracker = async (ctx, leadId, type) => {
             },
             body: JSON.stringify(data)
         });
-    
+
         const result = await uploadResponse.json();
         console.log('Результат:', result);
-    
+
         if (result?.status == 'success') {
             ctx.reply("Фотография успешно загружена")
                 .then(setSessionStep(ctx.message.from.id, null));
@@ -741,3 +749,17 @@ const uploadTelegramPhotoToLPTracker = async (ctx, leadId, type) => {
         console.error('Ошибка при загрузке фото:', type, error)
     }
 }
+
+const parseDate = (dateString) => {
+    const [day, month, yearAndTime] = dateString.split('.');
+    const [year, time] = yearAndTime.split(' ');
+    const [hours, minutes] = time.split(':');
+
+    return new Date(year, month - 1, day, hours, minutes);
+};
+
+const localeDateStringParams = {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+};

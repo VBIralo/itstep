@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const fetch = require('node-fetch');
 const cron = require('node-cron');
-const { Telegraf } = require('telegraf');
+const { Telegraf, Markup } = require('telegraf');
 
 // Подключение библиотеки dotenv и загрузка переменных окружения
 const envPath = path.join(__dirname, ".env");
@@ -41,7 +41,6 @@ const isDev = true;
 
 // вывод заказов с даты - 01 Jan 2023 00:00:00 GMT
 const createdAtDate = 1672531200;
-
 
 
 
@@ -276,6 +275,15 @@ bot.hears('Свободные заказы', async (ctx) => {
     } catch (error) {
         console.log("Ошибка при получении данных из LPTracker: " + error);
     }
+});
+
+
+bot.hears('Связаться с менеджером', async (ctx) => {
+    const keyboard = Markup.inlineKeyboard(
+        managers.map(manager => [Markup.button.url(manager.name, `tg://user?id=${manager.chatId}`)])
+    );
+
+    ctx.reply('Контакты менеджеров', keyboard)
 });
 
 // ТАЙМЕРЫ

@@ -24,8 +24,9 @@ const setSessionStep = (userId, step) => {
     fs.writeFileSync('./sessions.json', JSON.stringify(sessions, null, '    '));
 };
 
-// Загрузка данных из workers.json
+// Загрузка данных из json
 const workers = require("./workers.json");
+const managers = require("./managers.json");
 
 // Пример объекта заказа
 const order = { name: "Дмитрий Митин", name: "Мама" };
@@ -101,10 +102,6 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
         console.error(error.stack);
     }
 });
-
-
-
-
 
 bot.hears('Заказы на сегодня', async (ctx) => {
 
@@ -200,14 +197,14 @@ bot.hears('Заказы на завтра', async (ctx) => {
 bot.hears('Архив заказов', async (ctx) => {
     try {
         // Сделать постраничный вывод
-        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
+        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=" + createdAtDate, { headers: { token: lpTrackerToken } });
         const data = await response.json(); // Преобразование ответа в JSON 
 
         let message = '20 последних заказов:';
 
         const responseOut = data.result.map(item => {
             const order = {
-                idList: item.id.toString(),
+                leadId: item.id.toString(),
                 address: item.custom.find(object => object.name == 'Адрес').value ?? 'не указано',
                 dateOne: item.custom.find(object => object.name == 'Дата выполнения сделки').value ?? 'не указано',
                 dateOneA: item.custom.find(object => object.name == 'Дата выполнения сделки').value?.split(' ')[0] ?? 'не указано',
@@ -220,7 +217,6 @@ bot.hears('Архив заказов', async (ctx) => {
 
             if (order.dateForFilter && new Date() > new Date(order.dateForFilter)) {
                 message += '\n\nИмя клиента: ' + order.name + '\nАдрес: ' + order.address + '\nТелефон: ' + order.phone + '\nДата и время заказа: ' + order.dateOne + '\nПараметры заказа: ' + order.parametrs;
-                //console.log(message)
             }
         })
 
@@ -235,30 +231,46 @@ bot.hears('Архив заказов', async (ctx) => {
 
 bot.hears('Свободные заказы', async (ctx) => {
     try {
-        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
+        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=100&sort[updated_at]=3&filter[created_at_from]=" + createdAtDate, { headers: { token: lpTrackerToken } });
         const data = await response.json(); // Преобразование ответа в JSON 
-        // console.log(data.result[0]);
 
-        data.result.forEach(function (item) {
-            // var idList = item.id.toString();
-            var address = item.custom.find(object => object.name == 'Адрес');
-            var dateOne = item.custom.find(object => object.name == 'Дата выполнения сделки').value;
-            var freeOrder = item.custom.find(object => object.name == 'Свободный заказ').value;
-            // console.log(freeOrder)
-            var phone = item.contact.details.find(detail => detail.type === 'phone').data;
-            var name = item.contact.name;
-            var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-            if (freeOrder != "") {
-                var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nСвободный заказ?: ' + freeOrder + '\nПараметры заказа: ' + parametrs;// объединяем id и адрес в одну строку
-            }
-            const inlineKeyboard = {
+        let orders = [];
+
+        const reply_markup = (leadId) => {
+            return {
                 inline_keyboard: [
-                    [{ text: 'Написать менеджеру', callback_data: 'add_freeOrders_callback' }]
+                    [{ text: 'Взять этот заказ', callback_data: 'get_this_order_' + leadId }]
                 ]
-            };
+            }
+        }
 
-            // Отправляем сообщение с инлайн кнопкой и текстом
-            ctx.replyWithMarkdown(message, { reply_markup: inlineKeyboard }).catch(err => console.log(err));
+        const responseOut = data.result.map(item => {
+            const order = {
+                leadId: item.id.toString(),
+                address: item.custom.find(object => object.name == 'Адрес').value ?? 'не указано',
+                dateOne: item.custom.find(object => object.name == 'Дата выполнения сделки').value ?? 'не указано',
+                dateOneA: item.custom.find(object => object.name == 'Дата выполнения сделки').value?.split(' ')[0] ?? 'не указано',
+                dateForFilter: item.custom.find(object => object.name == 'Дата выполнения сделки').value?.split(' ')[0].split('.').reverse().join('-') ?? null,
+                status: item.custom.find(object => object.name == 'Свободный заказ')?.value,
+                phone: item.contact?.details.find(detail => detail.type == 'phone').data ?? 'не указано',
+                name: item.contact?.name ?? 'не указано',
+                parametrs: item.custom.find(object => object.name == 'Важная информация').value ?? 'не указано'
+
+            }
+
+            if (order.status[0] === "Да") {
+                orders.push(order);
+            }
+        })
+
+        return Promise.all(responseOut).then(() => {
+            ctx.reply('Свободных заказов - ' + orders.length)
+                .then(ok => {
+                    orders.map(order => {
+                        ctx.reply('Имя клиента: ' + order.name + '\nАдрес: ' + order.address + '\nТелефон: ' + order.phone + '\nДата и время заказа: ' + order.dateOne + '\nПараметры заказа: ' + order.parametrs, { reply_markup: reply_markup(order.leadId) });
+                    })
+
+                })
         });
 
     } catch (error) {
@@ -441,6 +453,17 @@ const cronSchedule = '*/1 * * * *'; // Каждую минуту
 
 // Запускаем cron по расписанию
 cron.schedule(cronSchedule, scheduledFunction);
+
+bot.action(/get_this_order_(\d+)/g, (ctx) => {
+    const leadId = ctx.match[1];
+    const from = ctx.update.callback_query.from;
+
+    ctx.reply('Ваше предложение отправлено менеджеру.\n\nОжидайте ответа менеджера в личных сообщениях.')
+    const message = `${from.firstName || from.username} хочет взяться за этот заказ\n\n[Ссылка на лид в LPT](https://my.lptracker.ru/#leads/card/${leadId})\n\n[Написать ${from.firstName || from.username}](tg://user?id=${from.id})`
+    return managers.map(manager => {
+        return bot.telegram.sendMessage(manager.chatId, message, { parse_mode: "MarkdownV2" }).catch(err => console.log(err));
+    })
+});
 
 bot.action(/add_receipt_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];

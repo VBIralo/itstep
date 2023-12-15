@@ -71,13 +71,13 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
         if (data.result && data.result.length > 0) {
             data.result.forEach(({ id, custom, contact }) => {
                 console.log('id', id, custom.find(object => object.name === 'Чек').value)
-                const address = custom.find(object => object.name === 'Адрес');
+                const address = custom.find(object => object.name === 'Адрес') ?? 'не указано';
                 const check = custom.find(object => object.name === 'Чек').value;
-                const phone = contact.details.find(detail => detail.type === 'phone')?.data ?? 'не указано';
+                const phone = contact?.details?.find(detail => detail.type === 'phone')?.data ?? 'не указано';
                 const date = custom.find(object => object.name == 'Дата выполнения сделки').value ?? 'не указано';
                 const executor = custom.find(object => object.name === 'Исполнитель')?.value ?? 'не указано';
-                const name = contact.name;
-                const parameters = custom.find(object => object.name === 'Важная информация').value;
+                const name = contact?.name ?? 'не указано';
+                const parameters = custom.find(object => object.name === 'Важная информация')?.value ?? 'не указано';
 
                 let message = `Имя клиента: ${name}\nАдрес клиента: ${address.value}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
 

@@ -86,7 +86,8 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
 
                     const inlineKeyboard = {
                         inline_keyboard: [
-                            [{ text: 'Добавить фото чека', callback_data: 'add_receipt_photo_' + id }]
+                            [{ text: 'Отправить фото чека', callback_data: 'send_receipt_photo_' + id }],
+                            [{ text: 'Не могу отправить фото чека', callback_data: 'cannot_send_receipt_photo_' + id }],
                         ]
                     };
 
@@ -438,10 +439,10 @@ async function scheduledFunction(ctx) {
                 var message2 = leadId;
                 const inlineKeyboard = {
                     inline_keyboard: [
-                        [{ text: 'Добавить фото внешнего вида', callback_data: 'add_appearance_photo_' + leadId }],
-                        [{ text: 'Не могу отправить фото внешнего вида', callback_data: 'not_send_outfit' }],
-                        [{ text: 'Отправить фото чека', callback_data: 'add_receipt_photo_' + leadId }]
-                        [{ text: 'Не могу отправить фото чека', callback_data: 'notSendCheck' }],
+                        [{ text: 'Добавить фото внешнего вида', callback_data: 'send_appearance_photo_' + leadId }],
+                        [{ text: 'Не могу отправить фото внешнего вида', callback_data: 'cannot_send_appearance_photo_' + leadId }],
+                        [{ text: 'Отправить фото чека', callback_data: 'send_receipt_photo_' + leadId }]
+                        [{ text: 'Не могу отправить фото чека', callback_data: 'cannot_send_receipt_photo_' + leadId }],
                         [{ text: 'Памятка', callback_data: 'remember' }]
                     ]
                 };
@@ -473,13 +474,13 @@ bot.action(/get_this_order_(\d+)/g, (ctx) => {
     })
 });
 
-bot.action(/add_receipt_photo_(\d+)/g, (ctx) => {
+bot.action(/^send_receipt_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     setSessionStep(ctx.update.callback_query.from.id, 'receipt_photo_' + leadId);
     ctx.reply('Пришлите фото чека');
 });
 
-bot.action(/add_appearance_photo_(\d+)/g, (ctx) => {
+bot.action(/^send_appearance_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     setSessionStep(ctx.update.callback_query.from.id, 'appearance_photo_' + leadId);
     ctx.reply('Пришлите фото чека');
@@ -503,7 +504,59 @@ bot.on('photo', async (ctx) => {
     };
 });
 
+bot.action(/^cannot_send_receipt_photo_(\d+)/g, async (ctx) => {
+    const leadId = ctx.match[1];
 
+    // Спрашиваем у пользователя причину
+    await ctx.reply('Напишите причину, по которой вы не можете отправить фото чека.')
+        .then(response => {
+            const messageId = response.message_id;
+
+            // Сохраняем messageId в сессии, чтобы использовать его позже
+            setSessionStep(ctx.update.callback_query.from.id, 'cannot_send_receipt_photo_' + leadId + '|' + messageId);
+        })
+});
+
+bot.action(/^cannot_send_appearance_photo_(\d+)/g, async (ctx) => {
+    const leadId = ctx.match[1];
+
+    // Спрашиваем у пользователя причину
+    await ctx.reply('Напишите причину, по которой вы не можете отправить фото внешнего вида.')
+        .then(response => {
+            const messageId = response.message_id;
+
+            // Сохраняем messageId в сессии, чтобы использовать его позже
+            setSessionStep(ctx.update.callback_query.from.id, 'cannot_send_appearance_photo_' + leadId + '|' + messageId);
+        })
+});
+
+bot.on('text', async (ctx) => {
+    // Получаем шаг из сессии пользователя
+    const step = sessions[ctx.message.from.id].step;
+
+    if ((step && step.startsWith('cannot_send_appearance_photo')) || (step && step.startsWith('cannot_send_receipt_photo'))) {
+        // Здесь обрабатываем ответ пользователя, например, сохраняем в базе данных
+        const userReason = ctx.message.text;
+
+        // Разделяем значение шага, чтобы получить messageId и action
+        const [action, messageId] = step.split('|');
+        const actionType = action.match(/cannot_send_(receipt|appearance)_photo_(\d+)/)[1];
+        const leadId = action.match(/cannot_send_(receipt|appearance)_photo_(\d+)/)[2];
+
+        // Редактируем предыдущее сообщение бота с новым текстом
+        await ctx.telegram.editMessageText(ctx.chat.id, messageId, null, `Ваш ответ, почему вы не можете прислать фото, записан: ${userReason}`);
+
+        // Удаляем ответ пользователя
+        await ctx.deleteMessage(ctx.message.message_id);
+
+        console.log(leadId, userReason)
+
+        putReasonToLPTracker(leadId, userReason, actionType)
+
+        // Сбрасываем шаг сессии
+        await setSessionStep(ctx.chat.id, null);
+    }
+});
 
 bot.action('send_outfit', async (ctx) => {
     await ctx.reply('Фото внешнего вида');
@@ -778,6 +831,38 @@ const uploadTelegramPhotoToLPTracker = async (ctx, leadId, type) => {
         }
     } catch (error) {
         console.error('Ошибка при загрузке фото:', type, error)
+    }
+}
+
+/**
+ * Помещает причину отказа отправки фото в LPTracker.
+ *
+ * @param {number} leadId - Идентификатор лида на LPTracker.
+ * @param {string} userReason - Причина отказа отправки фото.
+ * @param {'receipt'|'appearance'} actionType - Тип фото ('receipt' либо 'appearance').
+ * @throws {Error} Если произошла ошибка при выполнении запроса к LPTracker.
+ * @returns {Promise<void>} Обещание без значения, представляющее завершение операции.
+ */
+const putReasonToLPTracker = async (leadId, userReason, actionType) => {
+    // Запись в LPTracker
+    try {
+        const uploadResponse = await fetch('https://direct.lptracker.ru/lead/' + leadId, {
+            headers: {
+                "Content-Type": "application/json",
+                "token": lpTrackerToken
+            },
+            method: "PUT",
+            body: JSON.stringify({
+                custom: {
+                    [actionType === 'receipt' ? '2126627' : '2126626']: userReason
+                }
+            })
+        });
+
+        const result = await uploadResponse.json();
+        console.log('Результат:', result.status);
+    } catch (error) {
+        console.error('Ошибка:', error);
     }
 }
 

@@ -37,9 +37,8 @@ const workersChatId = workers.find(object => object.name === order.name).chatId;
 // const adminId = 1013645358;
 const adminId = 211382461;
 
-// вывод заказов с даты - 01 Jan 2023 00:00:00 GMT
-const createdAtDate = 1672531200;
-const API_LPTRACKER_URL = `https://direct.lptracker.ru/lead/103451/list?offset=0&limit=100&sort[updated_at]=3&filter[created_at_from]=${createdAtDate}`;
+const googleDocumentId = '1TPBVKx6apa8EsW1weN9FhEx3q3Xy869oRTqnAwoRHVI'; //генеральная уборка
+const { google } = require('googleapis');
 
 
 bot.start(async (ctx) => {
@@ -64,28 +63,14 @@ bot.help(async (ctx) => {
 \nТакже у вас есть возможность увидеть неоплаченные заказы.\n\nВ графе "Cвободные заказы" можно лицезреть те заказы, которые вы можете взять в работу.
 \nВ разделе "Архив заказов", вы увидите какие заказы вы выполняли раньше.
 \nА ещё всегда есть возможность связаться с вашим менеджером, при возникновении каких-либо вопросов.`);
-})
+});
 
 bot.hears('Неоплаченные заказы', async (ctx) => {
     try {
-        const response = await fetch(API_LPTRACKER_URL, { headers: { token: lpTrackerToken } });
-        const data = await response.json();
+        const orders = await fetchDataAndProcessOrders(50);
 
-        if (!data.result || data.result.length === 0) {
-            console.log('Массив данных пуст или не содержит заказов.');
-            return;
-        }
-
-        for (const { id, custom, contact } of data.result) {
-            const address = custom.find(object => object.name === 'Адрес') || 'не указано';
-            const check = custom.find(object => object.name === 'Чек')?.value || null;
-            const phone = contact?.details?.find(detail => detail.type === 'phone')?.data || 'не указано';
-            const date = custom.find(object => object.name == 'Дата выполнения сделки')?.value || 'не указано';
-            const executor = custom.find(object => object.name === 'Исполнитель')?.value || 'не указано';
-            const name = contact?.name || 'не указано';
-            const parameters = custom.find(object => object.name === 'Важная информация')?.value || 'не указано';
-
-            let message = `Имя клиента: ${name}\nАдрес клиента: ${address.value}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
+        for (const { id, name, address, check, phone, date, executor, parameters } of orders) {
+            let message = `Имя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
 
             if (check === null) {
                 message += '\n\nФото чека не добавлено';
@@ -109,146 +94,112 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
 
 bot.hears('Заказы на сегодня', async (ctx) => {
     try {
-        const response = await fetch(API_LPTRACKER_URL, { headers: { token: lpTrackerToken } });
-        const data = await response.json();
-
+        const orders = await fetchDataAndProcessOrders(50);
         const today = new Date().toLocaleDateString('en-GB', localeDateStringParams);
-        
-        const ordersForToday = data.result.filter(order => {
-            const orderDateString = order.custom.find(object => object.name == 'Дата выполнения сделки')?.value;
-            return orderDateString && parseDate(orderDateString).toLocaleDateString('en-GB', localeDateStringParams) === today;
-        });
+        let counter = 0; // Инициализация переменной
+        const message = [];
 
-        if (ordersForToday.length === 0) {
+        for (const { name, address, phone, date, executor, parameters } of orders) {
+            if (date && date !== 'не указано' && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today) {
+                message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
+                counter++;
+            }
+        }
+
+        if (counter === 0) {
             return ctx.reply('Заказов на сегодня нет');
         }
 
-        const message = [`На сегодня заказов - ${ordersForToday.length}`];
+        message.unshift(`На сегодня заказов - ${counter}`);
 
-        const responseOut = ordersForToday.map(({ custom, contact }) => {
-            const address = custom.find(object => object.name === 'Адрес') || 'не указано';
-            const phone = contact?.details?.find(detail => detail.type === 'phone')?.data || 'не указано';
-            const date = custom.find(object => object.name == 'Дата выполнения сделки')?.value || 'не указано';
-            const executor = custom.find(object => object.name === 'Исполнитель')?.value || 'не указано';
-            const name = contact?.name || 'не указано';
-            const parameters = custom.find(object => object.name === 'Важная информация')?.value || 'не указано';
-
-            message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address.value}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
-        });
-
-        return Promise.all(responseOut).then(ctx.reply(message.join('')));
+        await ctx.reply(message.join(''));
     } catch (error) {
-        console.error("Ошибка при получении данных из LPTracker:", error);
+        console.error("An error occurred:", error);
+        console.error(error.stack);
     }
 });
 
 
 bot.hears('Заказы на завтра', async (ctx) => {
     try {
-        const response = await fetch(API_LPTRACKER_URL, { headers: { token: lpTrackerToken } });
-        const data = await response.json();
-
+        const orders = await fetchDataAndProcessOrders(50);
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         const formattedTomorrow = tomorrow.toLocaleDateString('en-GB', localeDateStringParams);
+        let counter = 0; // Инициализация переменной
+        const message = [];
 
-        const ordersForTomorrow = data.result.filter(order => {
-            const orderDateString = order.custom.find(object => object.name === 'Дата выполнения сделки')?.value;
-            return orderDateString && parseDate(orderDateString).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow;
-        });
+        for (const { name, address, phone, date, executor, parameters } of orders) {
+            if (date && date !== 'не указано' && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow) {
+                message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
+                counter++;
+            }
+        }
 
-        if (ordersForTomorrow.length === 0) {
+        if (counter === 0) {
             return ctx.reply('Заказов на завтра нет');
         }
 
-        const message = [`На завтра заказов - ${ordersForTomorrow.length}`];
+        message.unshift(`На завтра заказов - ${counter}`);
 
-        const responseOut = ordersForTomorrow.map(({ custom, contact }) => {
-            const address = custom.find(object => object.name === 'Адрес') || 'не указано';
-            const phone = contact?.details?.find(detail => detail.type === 'phone')?.data || 'не указано';
-            const date = custom.find(object => object.name == 'Дата выполнения сделки')?.value || 'не указано';
-            const executor = custom.find(object => object.name === 'Исполнитель')?.value || 'не указано';
-            const name = contact?.name || 'не указано';
-            const parameters = custom.find(object => object.name === 'Важная информация')?.value || 'не указано';
-
-            message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address.value}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
-        });
-
-        return Promise.all(responseOut).then(ctx.reply(message.join('')));
+        await ctx.reply(message.join(''));
     } catch (error) {
-        console.error("Ошибка при получении данных из LPTracker:", error);
+        console.error("An error occurred:", error);
+        console.error(error.stack);
     }
 });
 
 
 bot.hears('Архив заказов', async (ctx) => {
     try {
-        const response = await fetch(`https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=${createdAtDate}`, {
-            headers: { token: lpTrackerToken }
-        });
-
-        const data = await response.json();
-
+        const orders = await fetchDataAndProcessOrders(20);
         const message = ['20 последних заказов:'];
 
-        const ordersForToday = data.result.filter(order => {
-            const orderDateString = order.custom.find(object => object.name === 'Дата выполнения сделки')?.value;
-            return orderDateString && parseDate(orderDateString) < new Date();
-        });
-
-        for (const item of ordersForToday) {
-            const order = {
-                leadId: item.id.toString(),
-                address: item.custom.find(object => object.name == 'Адрес')?.value || 'не указано',
-                dateOne: item.custom.find(object => object.name == 'Дата выполнения сделки')?.value || 'не указано',
-                dateForFilter: item.custom.find(object => object.name == 'Дата выполнения сделки')?.value?.split(' ')[0]?.split('.').reverse().join('-') || null,
-                phone: item.contact?.details.find(detail => detail.type == 'phone')?.data || 'не указано',
-                name: item.contact?.name || 'не указано',
-                parametrs: item.custom.find(object => object.name == 'Важная информация')?.value || 'не указано'
-            };
-
-            message.push(`\n\nИмя клиента: ${order.name}\nАдрес: ${order.address}\nТелефон: ${order.phone}\nДата и время заказа: ${order.dateOne}\nПараметры заказа: ${order.parametrs}`);
+        for (const { name, address, phone, date, parameters } of orders) {
+            if (date && date !== 'не указано' && parseDate(date) < new Date()) {
+                message.push(`\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}`);
+            }
         }
 
-        ctx.reply(message.join(''));
+        await ctx.reply(message.join(''));
     } catch (error) {
-        console.error("Ошибка при получении данных из LPTracker:", error);
+        console.error("An error occurred:", error);
+        console.error(error.stack);
     }
 });
 
 bot.hears('Свободные заказы', async (ctx) => {
     try {
-        const response = await fetch(API_LPTRACKER_URL, { headers: { token: lpTrackerToken } });
-        const data = await response.json();
-
-        const orders = data.result
-            .filter(item => item.custom.find(object => object.name == 'Свободный заказ')?.value?.[0] === 'Да')
-            .map(item => ({
-                leadId: item.id.toString(),
-                address: item.custom.find(object => object.name == 'Адрес')?.value || 'не указано',
-                dateOne: item.custom.find(object => object.name == 'Дата выполнения сделки')?.value || 'не указано',
-                dateOneA: item.custom.find(object => object.name == 'Дата выполнения сделки')?.value?.split(' ')[0] || 'не указано',
-                phone: item.contact?.details.find(detail => detail.type == 'phone')?.data || 'не указано',
-                name: item.contact?.name || 'не указано',
-                parametrs: item.custom.find(object => object.name == 'Важная информация')?.value || 'не указано'
-            }));
-
-        ctx.reply(`Свободных заказов - ${orders.length}`);
-
-        for (const order of orders) {
-            const replyMarkup = {
-                inline_keyboard: [
-                    [{ text: 'Взять этот заказ', callback_data: `get_this_order_${order.leadId}` }]
-                ]
-            };
-
-            const orderMessage = `Имя клиента: ${order.name}\nАдрес: ${order.address}\nТелефон: ${order.phone}\nДата и время заказа: ${order.dateOne}\nПараметры заказа: ${order.parametrs}`;
-
-            ctx.reply(orderMessage, { reply_markup: replyMarkup });
+        const orders = await fetchDataAndProcessOrders(50);
+        let counter = 0; // Инициализация переменной
+        const messages = [];
+    
+        for (const { id, name, address, phone, date, parameters, isFree } of orders) {
+            if (isFree) {
+                messages.push([
+                    {
+                        inline_keyboard: [
+                            [{ text: 'Взять этот заказ', callback_data: `get_this_order_${id}` }]
+                        ]
+                    },
+                    `Имя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}`
+                ]);
+                counter++;
+            }
         }
-
+    
+        if (counter === 0) {
+            return ctx.reply('Свободных заказов нет');
+        }
+    
+        ctx.reply(`Свободных заказов - ${counter}`);
+    
+        await Promise.all(messages.map(([replyMarkup, message]) => {
+            return ctx.reply(message, { reply_markup: replyMarkup });
+        }));
     } catch (error) {
-        console.error("Ошибка при получении данных из LPTracker:", error);
+        console.error("An error occurred:", error);
+        console.error(error.stack);
     }
 });
 
@@ -270,6 +221,7 @@ bot.action(/get_this_order_(\d+)/g, (ctx) => {
     ctx.reply('Ваше предложение отправлено менеджеру.\n\nОжидайте ответа менеджера в личных сообщениях.')
     const message = `${from.firstName || from.username} хочет взяться за этот заказ\n\n[Ссылка на лид в LPT](https://my.lptracker.ru/#leads/card/${leadId})\n\n[Написать ${from.firstName || from.username}](tg://user?id=${from.id})`
     return managers.map(manager => {
+        ctx.answerCbQuery('', true);
         return bot.telegram.sendMessage(manager.chatId, message, { parse_mode: "MarkdownV2" }).catch(err => console.log(err));
     })
 });
@@ -277,13 +229,17 @@ bot.action(/get_this_order_(\d+)/g, (ctx) => {
 bot.action(/^send_receipt_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     setSessionStep(ctx.update.callback_query.from.id, 'receipt_photo_' + leadId);
-    ctx.reply('Пришлите фото чека');
+    
+    ctx.reply('Пришлите фото чека')
+    .then(ctx.answerCbQuery('', true))
 });
 
 bot.action(/^send_appearance_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     setSessionStep(ctx.update.callback_query.from.id, 'appearance_photo_' + leadId);
-    ctx.reply('Пришлите фото чека');
+    
+    ctx.reply('Пришлите фото чека')
+    .then(ctx.answerCbQuery('', true))
 });
 
 bot.on('photo', async (ctx) => {
@@ -315,6 +271,7 @@ bot.action(/^cannot_send_receipt_photo_(\d+)/g, async (ctx) => {
             // Сохраняем messageId в сессии, чтобы использовать его позже
             setSessionStep(ctx.update.callback_query.from.id, 'cannot_send_receipt_photo_' + leadId + '|' + messageId);
         })
+        .then(ctx.answerCbQuery('', true))
 });
 
 bot.action(/^cannot_send_appearance_photo_(\d+)/g, async (ctx) => {
@@ -328,6 +285,7 @@ bot.action(/^cannot_send_appearance_photo_(\d+)/g, async (ctx) => {
             // Сохраняем messageId в сессии, чтобы использовать его позже
             setSessionStep(ctx.update.callback_query.from.id, 'cannot_send_appearance_photo_' + leadId + '|' + messageId);
         })
+        .then(ctx.answerCbQuery('', true))
 });
 
 bot.on('text', async (ctx) => {
@@ -778,6 +736,39 @@ const putReasonToLPTracker = async (leadId, userReason, actionType) => {
         console.error('Ошибка:', error);
     }
 }
+
+const fetchDataAndProcessOrders = async (limit) => {
+    // вывод заказов с даты - 01 Jan 2023 00:00:00 GMT
+    const createdAtDate = 1672531200;
+
+    try {
+        const response = await fetch(`https://direct.lptracker.ru/lead/103451/list?offset=0&limit=${limit}&sort[updated_at]=3&filter[created_at_from]=${createdAtDate}`, { headers: { token: lpTrackerToken } });
+        const data = await response.json();
+
+        if (!data.result || data.result.length === 0) {
+            console.log('Массив данных пуст или не содержит заказов.');
+            return [];
+        }
+
+        return data.result.map(({ id, custom, contact }) => {
+            const address = custom.find(object => object.name === 'Адрес')?.value || 'не указано';
+            const check = custom.find(object => object.name === 'Чек')?.value || null;
+            const phone = contact?.details?.find(detail => detail.type === 'phone')?.data || 'не указано';
+            const date = custom.find(object => object.name == 'Дата выполнения сделки')?.value || 'не указано';
+            const executor = custom.find(object => object.name === 'Исполнитель')?.value[0] || 'не указано';
+            const name = contact?.name || 'не указано';
+            const parameters = custom.find(object => object.name === 'Важная информация')?.value || 'не указано';
+            const typeOfCleaning = custom.find(object => object.name == 'Вид уборки')?.value[0] || 'не указано';
+            const isFree = custom.find(object => object.name == 'Свободный заказ')?.value?.[0] === 'Да';
+
+            return { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, isFree };
+        });
+    } catch (error) {
+        console.error("An error occurred:", error);
+        console.error(error.stack);
+        return []; // Если произошла ошибка, возвращаем пустой массив
+    }
+};
 
 const parseDate = (dateString) => {
     const [day, month, yearAndTime] = dateString.split('.');

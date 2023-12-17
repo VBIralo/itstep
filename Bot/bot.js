@@ -30,10 +30,6 @@ const managers = require("./managers.json");
 // Очередь тайцмеров напоминалок
 const timers = [];
 
-// telegram id админа для теста
-// const adminId = 1013645358;
-const adminId = 211382461;
-
 const googleDocumentId = '1TPBVKx6apa8EsW1weN9FhEx3q3Xy869oRTqnAwoRHVI'; //генеральная уборка
 const { google } = require('googleapis');
 
@@ -95,7 +91,7 @@ bot.hears('Заказы на сегодня', async (ctx) => {
         let counter = 0; // Инициализация переменной
         const message = [];
 
-        for (const { name, address, phone, date, executor, parameters } of orders) {
+        for (const { name, address, phone, date, executor, parameters, typeOfCleaning } of orders) {
             const worker = workers.find(w => w.name === executor);
             if (date && date !== 'не указано' && worker && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today) {
                 message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
@@ -126,7 +122,7 @@ bot.hears('Заказы на завтра', async (ctx) => {
         let counter = 0; // Инициализация переменной
         const message = [];
 
-        for (const { name, address, phone, date, executor, parameters } of orders) {
+        for (const { name, address, phone, date, executor, parameters, typeOfCleaning } of orders) {
             const worker = workers.find(w => w.name === executor);
             if (date && date !== 'не указано' && worker && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow) {
                 message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
@@ -153,7 +149,7 @@ bot.hears('Архив заказов', async (ctx) => {
         const orders = await fetchDataAndProcessOrders(20);
         const message = ['20 последних заказов:'];
 
-        for (const { name, address, phone, date, parameters } of orders) {
+        for (const { name, address, phone, date, parameters, typeOfCleaning } of orders) {
             if (date && date !== 'не указано' && parseDate(date) < new Date()) {
                 message.push(`\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`);
             }
@@ -249,13 +245,13 @@ bot.on('photo', async (ctx) => {
         const leadId = sessionStep.match(regExpReceipt)[1];
 
         uploadTelegramPhotoToLPTracker(ctx, leadId, 'receipt');
-    };
+    }
 
     if (regExpAppearence.test(sessionStep)) {
         const leadId = sessionStep.match(regExpAppearence)[1];
 
         uploadTelegramPhotoToLPTracker(ctx, leadId, 'appearance');
-    };
+    }
 });
 
 bot.action(/^instruction_(.+)/g, (ctx) => {
@@ -278,7 +274,7 @@ bot.action(/^cancel_this_order_(\d+)/g, (ctx) => {
 });
 
 bot.action(/^listen_to_call_recording_(\d+)/g, (ctx) => {
-    const leadId = ctx.match[1];
+    //const leadId = ctx.match[1];
     //setSessionStep(ctx.update.callback_query.from.id, 'listen_to_call_recording_' + leadId);
 
     ctx.reply('Ошибка при получении аудиозаписи')
@@ -402,7 +398,7 @@ const uploadTelegramPhotoToLPTracker = async (ctx, leadId, type) => {
             ctx.reply("Фотография успешно загружена")
                 .then(setSessionStep(ctx.message.from.id, null));
         } else {
-            console.error('Ошибка при загрузке фото:', type, error)
+            console.error('Ошибка при загрузке фото:', type)
             ctx.reply('Произошла ошибка при загрузке фото ' + type === 'receipt' ? 'чека' : 'внешнего вида');
         }
     } catch (error) {
@@ -467,7 +463,7 @@ const getGoogleDocsContent = async (documentId) => {
         ['https://www.googleapis.com/auth/documents']
     );
 
-    client.authorize(function (err, tokens) {
+    client.authorize(function (err) {
         if (err) {
             console.error('Ошибка аутентификации:', err);
             return;
@@ -524,7 +520,7 @@ const sendUnpaidOrdersReminder = async () => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
 
-        for (const { id, name, address, check, phone, date, executor, parameters } of orders) {
+        for (const { id, name, address, check, phone, date, executor, parameters, typeOfCleaning } of orders) {
             let message = `У Вас есть неоплаченный заказ\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
 
             if (check === null) {
@@ -558,7 +554,7 @@ const sendCancelOrdersReminder = async () => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
 
-        for (const { id, name, address, phone, date, executor, parameters, reasonForCancellation } of orders) {
+        for (const { id, name, address, phone, date, executor, parameters, reasonForCancellation, typeOfCleaning } of orders) {
             if (reasonForCancellation) {
                 let message = `ЗАКАЗ ОТМЕНЕН!\n\nИмя клиента: ${name}\nПричина отказа: ${reasonForCancellation}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nТип уборки: ${typeOfCleaning}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
                 let messageForManager = `ЗАКАЗ ИСПОЛНИТЕЛЯ ${executor} ОТМЕНЕН!\n\nИмя клиента: ${name}\nПричина отказа: ${reasonForCancellation}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nТип уборки: ${typeOfCleaning}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}`;

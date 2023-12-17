@@ -71,8 +71,8 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
 
         for (const { id, name, address, check, phone, date, executor, parameters } of orders) {
             let message = `Имя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
-
-            if (check === null) {
+            const worker = workers.find(w => w.name === executor);
+            if (check === null && worker) {
                 message += '\n\nФото чека не добавлено';
 
                 const inlineKeyboard = {
@@ -100,7 +100,8 @@ bot.hears('Заказы на сегодня', async (ctx) => {
         const message = [];
 
         for (const { name, address, phone, date, executor, parameters } of orders) {
-            if (date && date !== 'не указано' && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today) {
+            const worker = workers.find(w => w.name === executor);
+            if (date && date !== 'не указано' && worker && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today) {
                 message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
                 counter++;
             }
@@ -130,7 +131,8 @@ bot.hears('Заказы на завтра', async (ctx) => {
         const message = [];
 
         for (const { name, address, phone, date, executor, parameters } of orders) {
-            if (date && date !== 'не указано' && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow) {
+            const worker = workers.find(w => w.name === executor);
+            if (date && date !== 'не указано' && worker && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow) {
                 message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
                 counter++;
             }

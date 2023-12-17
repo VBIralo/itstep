@@ -27,11 +27,8 @@ const setSessionStep = (userId, step) => {
 const workers = require("./workers.json");
 const managers = require("./managers.json");
 
-// Пример объекта заказа
-const order = { name: "Дмитрий Митин", name: "Мама" };
-
-// Получение chatId из workers.json
-const workersChatId = workers.find(object => object.name === order.name).chatId;
+// Очередь тайцмеров напоминалок
+const timers = [];
 
 // telegram id админа для теста
 // const adminId = 1013645358;
@@ -39,7 +36,6 @@ const adminId = 211382461;
 
 const googleDocumentId = '1TPBVKx6apa8EsW1weN9FhEx3q3Xy869oRTqnAwoRHVI'; //генеральная уборка
 const { google } = require('googleapis');
-
 
 bot.start(async (ctx) => {
     ctx.reply('Компания Cleaning Moscow благодарит вас за регистрацию.\n\nУзнать информацию о пользовании ботом можно нажав на команду /help',
@@ -102,7 +98,7 @@ bot.hears('Заказы на сегодня', async (ctx) => {
         for (const { name, address, phone, date, executor, parameters } of orders) {
             const worker = workers.find(w => w.name === executor);
             if (date && date !== 'не указано' && worker && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today) {
-                message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
+                message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
                 counter++;
             }
         }
@@ -133,7 +129,7 @@ bot.hears('Заказы на завтра', async (ctx) => {
         for (const { name, address, phone, date, executor, parameters } of orders) {
             const worker = workers.find(w => w.name === executor);
             if (date && date !== 'не указано' && worker && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow) {
-                message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
+                message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
                 counter++;
             }
         }
@@ -159,7 +155,7 @@ bot.hears('Архив заказов', async (ctx) => {
 
         for (const { name, address, phone, date, parameters } of orders) {
             if (date && date !== 'не указано' && parseDate(date) < new Date()) {
-                message.push(`\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}`);
+                message.push(`\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`);
             }
         }
 
@@ -173,10 +169,10 @@ bot.hears('Архив заказов', async (ctx) => {
 bot.hears('Свободные заказы', async (ctx) => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
-        let counter = 0; // Инициализация переменной
+        let counter = 0;
         const messages = [];
-    
-        for (const { id, name, address, phone, date, parameters, isFree } of orders) {
+
+        for (const { id, name, address, phone, date, parameters, isFree, typeOfCleaning } of orders) {
             if (isFree) {
                 messages.push([
                     {
@@ -184,18 +180,18 @@ bot.hears('Свободные заказы', async (ctx) => {
                             [{ text: 'Взять этот заказ', callback_data: `get_this_order_${id}` }]
                         ]
                     },
-                    `Имя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}`
+                    `Имя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`
                 ]);
                 counter++;
             }
         }
-    
+
         if (counter === 0) {
             return ctx.reply('Свободных заказов нет');
         }
-    
+
         ctx.reply(`Свободных заказов - ${counter}`);
-    
+
         await Promise.all(messages.map(([replyMarkup, message]) => {
             return ctx.reply(message, { reply_markup: replyMarkup });
         }));
@@ -231,17 +227,17 @@ bot.action(/get_this_order_(\d+)/g, (ctx) => {
 bot.action(/^send_receipt_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     setSessionStep(ctx.update.callback_query.from.id, 'receipt_photo_' + leadId);
-    
+
     ctx.reply('Пришлите фото чека')
-    .then(ctx.answerCbQuery('', true))
+        .then(ctx.answerCbQuery('', true))
 });
 
 bot.action(/^send_appearance_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     setSessionStep(ctx.update.callback_query.from.id, 'appearance_photo_' + leadId);
-    
-    ctx.reply('Пришлите фото чека')
-    .then(ctx.answerCbQuery('', true))
+
+    ctx.reply('Пришлите фото внешнего вида')
+        .then(ctx.answerCbQuery('', true))
 });
 
 bot.on('photo', async (ctx) => {
@@ -295,7 +291,7 @@ bot.on('text', async (ctx) => {
     const step = sessions[ctx.message.from.id].step;
 
     if ((step && step.startsWith('cannot_send_appearance_photo')) || (step && step.startsWith('cannot_send_receipt_photo'))) {
-        // Здесь обрабатываем ответ пользователя, например, сохраняем в базе данных
+        // Здесь обрабатываем ответ пользователя
         const userReason = ctx.message.text;
 
         // Разделяем значение шага, чтобы получить messageId и action
@@ -756,14 +752,15 @@ const fetchDataAndProcessOrders = async (limit) => {
             const address = custom.find(object => object.name === 'Адрес')?.value || 'не указано';
             const check = custom.find(object => object.name === 'Чек')?.value || null;
             const phone = contact?.details?.find(detail => detail.type === 'phone')?.data || 'не указано';
-            const date = custom.find(object => object.name == 'Дата выполнения сделки')?.value || 'не указано';
+            const date = custom.find(object => object.name === 'Дата выполнения сделки')?.value || 'не указано';
             const executor = custom.find(object => object.name === 'Исполнитель')?.value[0] || 'не указано';
             const name = contact?.name || 'не указано';
             const parameters = custom.find(object => object.name === 'Важная информация')?.value || 'не указано';
-            const typeOfCleaning = custom.find(object => object.name == 'Вид уборки')?.value[0] || 'не указано';
-            const isFree = custom.find(object => object.name == 'Свободный заказ')?.value?.[0] === 'Да';
+            const typeOfCleaning = custom.find(object => object.name === 'Вид уборки')?.value[0] || 'не указано';
+            const isFree = custom.find(object => object.name === 'Свободный заказ')?.value?.[0] === 'Да';
+            const reasonForCancellation = custom.find(object => object.name === 'Причина отмены заказа')?.value;
 
-            return { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, isFree };
+            return { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, isFree, reasonForCancellation };
         });
     } catch (error) {
         console.error("An error occurred:", error);

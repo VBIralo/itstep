@@ -2,3 +2,5 @@ node_modules
 Bot/.env
 
 Bot/output.json
+
+Bot/creds.json

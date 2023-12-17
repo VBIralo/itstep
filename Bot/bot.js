@@ -258,6 +258,33 @@ bot.on('photo', async (ctx) => {
     };
 });
 
+bot.action(/^instruction_(.+)/g, (ctx) => {
+    const typeOfCleaning = ctx.match[1];
+    //setSessionStep(ctx.update.callback_query.from.id, 'instruction_' + leadId);
+
+    getCleaningInstructions(typeOfCleaning)
+        .then(instruction => {
+            ctx.reply(instruction)
+                .then(ctx.answerCbQuery('', true))
+        })
+});
+
+bot.action(/^cancel_this_order_(\d+)/g, (ctx) => {
+    const leadId = ctx.match[1];
+    setSessionStep(ctx.update.callback_query.from.id, 'cancel_this_order_' + leadId);
+
+    ctx.reply('Напишите причину отмены заказа')
+        .then(ctx.answerCbQuery('', true))
+});
+
+bot.action(/^listen_to_call_recording_(\d+)/g, (ctx) => {
+    const leadId = ctx.match[1];
+    //setSessionStep(ctx.update.callback_query.from.id, 'listen_to_call_recording_' + leadId);
+
+    ctx.reply('Ошибка при получении аудиозаписи')
+        .then(ctx.answerCbQuery('', true))
+});
+
 bot.action(/^cannot_send_receipt_photo_(\d+)/g, async (ctx) => {
     const leadId = ctx.match[1];
 
@@ -312,345 +339,25 @@ bot.on('text', async (ctx) => {
         // Сбрасываем шаг сессии
         await setSessionStep(ctx.chat.id, null);
     }
-});
 
-async function newLpFunction(ctx) { // Функция при добавлении в LPTracker
-    ctx.scene.session.state
-    try {
-        var time = new Date();
+    if (step && step.startsWith('cancel_this_order_')) {
+        // Здесь обрабатываем ответ пользователя
+        const userReason = ctx.message.text;
+        const leadId = step.match(/cancel_this_order_(\d+)/)[1];
 
-        var date = time.getDate();
-        if (date < 10) date = "0" + date;
-        var month = time.getMonth() + 1;
-        if (month == 13) month = 1;
-        if (month < 10) month = "0" + month;
-        var year = time.getFullYear();
+        ctx.reply(`Ваш ответ, почему вы не можете взять этот заказ, записан: ${userReason}`);
 
-        var hour = time.getHours();
-        if (hour < 10) hour = "0" + hour;
-        var minute = time.getMinutes() - 1;
-        if (minute < 10) minute = "0" + minute;
+        putReasonToLPTracker(leadId, userReason, 'cancelingOrder');
 
-        var currentTime = `${date}.${month}.${year} ${hour}:${minute}`;
-
-        // Отправляем отформатированное время в чат
-        // console.log(`${timeNow}`);
-
-        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
-        const data = await response.json();
-        // console.log(data.result[0])
-        data.result.forEach(function (item) {
-            var address = item.custom.find(object => object.name == 'Адрес');
-            var dateOne = item.custom.find(object => object.name == 'Дата выполнения сделки').value;
-            var phone = item.contact?.details?.find(detail => detail.type === 'phone').data;
-            var name = item.contact.name;
-            var created_at = item.contact.created_at
-            let created_at_new = created_at.split('').slice(0, -3).join('');
-            var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-
-            if (String(currentTime) === String(created_at_new)) {
-                var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs + '\nДата создания лида: ' + created_at;
-            }
-
-            const inlineKeyboard = {
-                inline_keyboard: [
-                    [{ text: 'Отмена заказа', callback_data: 'cancelOrder' }],
-                    [{ text: 'Послушать запись первого звонка', callback_data: 'hearRecordFirstCall' }]
-                ]
-            };
-
-            // Use the bot.telegram.sendMessage method
-            bot.telegram.sendMessage(adminId, message, { reply_markup: inlineKeyboard }).catch(err => console.log(err));
-        });
-    }
-    catch (error) {
-        console.error('Ошибка:', error);
-    }
-}
-
-// Таймеры
-
-
-// cron.schedule('7 11 * * *', () => {
-//     try {
-//         // Создаем инлайн клавиатуру
-//         const inlineKeyboard = {
-//             inline_keyboard: [
-//                 [{ text: 'Добавить фото чека', callback_data: 'add_photo_check_callback' }]
-//             ]
-//         };
-
-//         // Отправляем сообщение с инлайн кнопкой и текстом
-//         bot.telegram.sendMessage(adminId, 'У вас есть неоплаченные заказы', {
-//             reply_markup: inlineKeyboard,
-//         }).catch(error => console.error('Ошибка при отправке уведомления:', error));
-
-//     } catch (error) {
-//         console.error('Ошибка при отправке уведомления:', error);
-//     }
-// });
-
-cron.schedule('0 10 * * *', async () => {
-    try {
-        // Создаем инлайн клавиатуру
-        const inlineKeyboard = {
-            inline_keyboard: [
-                [{ text: 'Посмотреть неоплаченные заказы', callback_data: 'noPayOrder' }]
-            ]
-        };
-
-        // Отправляем сообщение с инлайн кнопкой и текстом
-        bot.telegram.sendMessage(adminId, 'У вас есть неоплаченные заказы', {
-            reply_markup: inlineKeyboard,
-        }).catch(error => console.error('Ошибка при отправке уведомления:', error));
-
-        bot.action('noPayOrder', async (ctx) => {
-            try {
-                const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
-                const data = await response.json(); // Преобразование ответа в JSON 
-
-                data.result.forEach(async function (item) {
-                    var address = item.custom.find(object => object.name == 'Адрес');
-                    var check = (item.custom.find(object => object.name == 'Чек').value)
-                    var phone = item.contact?.details?.find(detail => detail.type === 'phone').data;
-                    var name = item.contact?.name;
-                    var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-                    if (check == null) {
-                        var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nПараметры заказа: ' + parametrs;
-
-                        const inlineKeyboard = {
-                            inline_keyboard: [
-                                [{ text: 'Добавить фото чека', callback_data: 'add_photo_check_callback' }]
-                            ]
-                        };
-
-                        // Отправляем сообщение с инлайн кнопкой и текстом
-                        ctx.replyWithMarkdown(message, { reply_markup: inlineKeyboard }).catch(err => console.log(err));
-                    }
-                });
-            } catch (error) {
-                console.error('Ошибка при отправке уведомления:', error);
-            }
-        });
-    } catch (error) {
-        console.error('Ошибка при отправке уведомления:', error);
+        // Сбрасываем шаг сессии
+        await setSessionStep(ctx.chat.id, null);
     }
 });
-
-cron.schedule('58 15 * * *', async () => {
-    try {
-        // Создаем инлайн клавиатуру
-        const inlineKeyboard = {
-            inline_keyboard: [
-                [{ text: 'Посмотреть неоплаченные заказы', callback_data: 'noPayOrder' }]
-            ]
-        };
-
-        // Отправляем сообщение с инлайн кнопкой и текстом
-        bot.telegram.sendMessage(adminId, 'У вас есть неоплаченные заказы', {
-            reply_markup: inlineKeyboard,
-        }).catch(error => console.error('Ошибка при отправке уведомления:', error));
-
-        bot.action('noPayOrder', async (ctx) => {
-            try {
-                const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
-                const data = await response.json(); // Преобразование ответа в JSON 
-
-                data.result.forEach(async function (item) {
-                    var address = item.custom.find(object => object.name == 'Адрес');
-                    var check = (item.custom.find(object => object.name == 'Чек').value)
-                    var phone = item.contact?.details?.find(detail => detail.type === 'phone').data;
-                    var name = item.contact?.name;
-                    var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-                    if (check == null) {
-                        var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nПараметры заказа: ' + parametrs;
-
-                        const inlineKeyboard = {
-                            inline_keyboard: [
-                                [{ text: 'Добавить фото чека', callback_data: 'add_photo_check_callback' }]
-                            ]
-                        };
-
-                        // Отправляем сообщение с инлайн кнопкой и текстом
-                        ctx.replyWithMarkdown(message, { reply_markup: inlineKeyboard }).catch(err => console.log(err));
-                    }
-                });
-            } catch (error) {
-                console.error('Ошибка при отправке уведомления:', error);
-            }
-        });
-    } catch (error) {
-        console.error('Ошибка при отправке уведомления:', error);
-    }
-});
-
-
-
-async function scheduledFunction(ctx) {
-    try {
-        var time = new Date();
-
-        var date = time.getDate();
-        if (date < 10) date = "0" + date;
-        var month = time.getMonth() + 1;
-        if (month == 13) month = 1;
-        if (month < 10) month = "0" + month;
-        var year = time.getFullYear();
-
-        var hour = time.getHours();
-        if (hour < 10) hour = "0" + hour;
-        var minute = time.getMinutes();
-        if (minute < 10) minute = "0" + minute;
-
-        var timeNow = `${date}.${month}.${year} ${hour}:${minute}`;
-
-        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
-        const data = await response.json();
-
-        data.result.forEach(function (item) {
-            var leadId = item.id;
-            var address = item.custom.find(object => object.name == 'Адрес');
-            var dateOne = item.custom.find(object => object.name == 'Дата выполнения сделки').value;
-            var phone = item.contact?.details?.find(detail => detail.type === 'phone').data;
-            var name = item.contact?.name;
-            var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-
-            if (String(dateOne) === String(timeNow)) {
-                var message = 'ID: ' + leadId + '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs;
-                var message2 = leadId;
-                const inlineKeyboard = {
-                    inline_keyboard: [
-                        [{ text: 'Добавить фото внешнего вида', callback_data: 'send_appearance_photo_' + leadId }],
-                        [{ text: 'Не могу отправить фото внешнего вида', callback_data: 'cannot_send_appearance_photo_' + leadId }],
-                        [{ text: 'Отправить фото чека', callback_data: 'send_receipt_photo_' + leadId }]
-                        [{ text: 'Не могу отправить фото чека', callback_data: 'cannot_send_receipt_photo_' + leadId }],
-                        [{ text: 'Памятка', callback_data: 'remember' }]
-                    ]
-                };
-
-                // Используйте метод bot.telegram.sendMessage
-                bot.telegram.sendMessage(adminId, message, { reply_markup: inlineKeyboard }).catch(err => console.log(err));
-                bot.telegram.sendMessage(adminId, message2, { reply_markup: inlineKeyboard }).catch(err => console.log(err));
-            }
-        });
-    } catch (error) {
-        console.error('Ошибка:', error);
-    }
-}
-
-// Создаем cron-расписание для выполнения каждую минуту
-const cronSchedule = '*/1 * * * *'; // Каждую минуту
-
-// Запускаем cron по расписанию
-cron.schedule(cronSchedule, scheduledFunction);
-
-const newLeadLp = '*/1 * * * *'; // Каждую минуту
-
-// Запускаем cron по расписанию
-cron.schedule(newLeadLp, newLpFunction);
-
-// cron.schedule('58 15 * * *', async () => {
-//     try {
-//         // Создаем инлайн клавиатуру
-//         const inlineKeyboard = {
-//             inline_keyboard: [
-//                 [{ text: 'Посмотреть неоплаченные заказы', callback_data: 'noPayOrder' }]
-//             ]
-//         };
-
-//         // Отправляем сообщение с инлайн кнопкой и текстом
-//         bot.telegram.sendMessage(adminId, 'У вас есть неоплаченные заказы', {
-//             reply_markup: inlineKeyboard,
-//         }).catch(error => console.error('Ошибка при отправке уведомления:', error));
-
-//         bot.action('noPayOrder', async (ctx) => {
-//             try {
-//                 const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
-//                 const data = await response.json(); // Преобразование ответа в JSON 
-
-//                 data.result.forEach(async function (item) {
-//                     var address = item.custom.find(object => object.name == 'Адрес');
-//                     var check = (item.custom.find(object => object.name == 'Чек').value)
-//                     var phone = item.contact?.details?.find(detail => detail.type === 'phone').data;
-//                     var name = item.contact?.name;
-//                     var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-//                     if (check == null) {
-//                         var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nПараметры заказа: ' + parametrs;
-
-//                         const inlineKeyboard = {
-//                             inline_keyboard: [
-//                                 [{ text: 'Добавить фото чека', callback_data: 'add_photo_check_callback' }]
-//                             ]
-//                         };
-
-//                         // Отправляем сообщение с инлайн кнопкой и текстом
-//                         ctx.replyWithMarkdown(message, { reply_markup: inlineKeyboard }).catch(err => console.log(err));
-//                     }
-//                 });
-//             } catch (error) {
-//                 console.error('Ошибка при отправке уведомления:', error);
-//             }
-//         });
-//     } catch (error) {
-//         console.error('Ошибка при отправке уведомления:', error);
-//     }
-// });
-
-
-async function forManagerFunction(ctx) { // manager
-    try {
-        var time = new Date();
-
-        var date = time.getDate();
-        if (date < 10) date = "0" + date;
-        var month = time.getMonth() + 1;
-        if (month == 13) month = 1;
-        if (month < 10) month = "0" + month;
-        var year = time.getFullYear();
-
-        var hour = time.getHours();
-        if (hour < 10) hour = "0" + hour;
-        var minute = time.getMinutes() - 1;
-        if (minute < 10) minute = "0" + minute;
-
-        var currentTime = `${date}.${month}.${year} ${hour}:${minute}`;
-
-        // Отправляем отформатированное время в чат
-        // console.log(`${timeNow}`);
-
-        const response = await fetch("https://direct.lptracker.ru/lead/103451/list?offset=0&limit=20&sort[updated_at]=3&filter[created_at_from]=1535529725", { headers: { token: lpTrackerToken } });
-        const data = await response.json();
-        console.log(data.result[0])
-        data.result.forEach(function (item) {
-            var address = item.custom.find(object => object.name == 'Адрес');
-            var dateOne = item.custom.find(object => object.name == 'Дата выполнения сделки').value;
-            var phone = item.contact?.details?.find(detail => detail.type === 'phone').data;
-            var name = item.contact.name;
-            var whyWasCancellationOrder = item.custom.find(object => object.name == 'Причина отмены заказа').value;
-            var needTake = item.custom.find(object => object.name == 'Обязательно взять').value;
-            var parametrs = item.custom.find(object => object.name == 'Важная информация').value;
-
-            if (whyWasCancellationOrder != null) {
-                message += '\nИсполнитель отказался от задания!';
-                var message = '\nИмя клиента: ' + name + '\nАдрес клиента: ' + address.value + '\nТелефон клиента: ' + phone + '\nДата и время заказа: ' + dateOne + '\nПараметры заказа: ' + parametrs + '\nПричина отмены заказа: ' + whyWasCancellationOrder + '\nОбязательно взять: ' + needTake;
-            }
-
-            // Use the bot.telegram.sendMessage method
-            bot.telegram.sendMessage(adminId, message).catch(err => console.log(err));
-        });
-    }
-    catch (error) {
-        console.error('Ошибка:', error);
-    }
-}
-
-const forManager = '52 17 * * *'; // Каждую минуту
-
-// Запускаем cron по расписанию
-cron.schedule(forManager, forManagerFunction);
-
 
 bot.launch();
+
+
+
 
 // Функции и константы
 
@@ -713,8 +420,23 @@ const uploadTelegramPhotoToLPTracker = async (ctx, leadId, type) => {
  * @returns {Promise<void>} Обещание без значения, представляющее завершение операции.
  */
 const putReasonToLPTracker = async (leadId, userReason, actionType) => {
+    let fieldId;
     // Запись в LPTracker
     try {
+        switch (actionType) {
+            case 'receipt':
+                fieldId = '2126627'
+                break;
+            case 'appearance':
+                fieldId = '2126626'
+                break;
+            case 'cancelingOrder':
+                fieldId = '2133341'
+                break;
+            default:
+                break;
+        }
+
         const uploadResponse = await fetch('https://direct.lptracker.ru/lead/' + leadId, {
             headers: {
                 "Content-Type": "application/json",
@@ -723,7 +445,7 @@ const putReasonToLPTracker = async (leadId, userReason, actionType) => {
             method: "PUT",
             body: JSON.stringify({
                 custom: {
-                    [actionType === 'receipt' ? '2126627' : '2126626']: userReason
+                    [fieldId]: userReason
                 }
             })
         });
@@ -735,6 +457,181 @@ const putReasonToLPTracker = async (leadId, userReason, actionType) => {
     }
 }
 
+const getGoogleDocsContent = async (documentId) => {
+    const credentials = require('./creds.json');
+
+    const client = new google.auth.JWT(
+        credentials.client_email,
+        null,
+        credentials.private_key,
+        ['https://www.googleapis.com/auth/documents']
+    );
+
+    client.authorize(function (err, tokens) {
+        if (err) {
+            console.error('Ошибка аутентификации:', err);
+            return;
+        }
+        console.log('Успешная аутентификация Google!');
+    });
+
+    const docs = google.docs({
+        version: 'v1',
+        auth: client,
+    });
+
+    try {
+        const { data } = await docs.documents.get({
+            documentId,
+        });
+
+        const content = data.body.content.reduce((acc, section) => {
+            if (section.paragraph) {
+                acc += section.paragraph.elements.map(element => element.textRun.content).join('');
+            }
+            return acc;
+        }, '');
+
+        return content;
+    } catch (error) {
+        console.error('Error fetching Google Docs content:', error.message);
+        throw error;
+    }
+};
+
+// Обертка, которая извлекает нужный текст на основе типа уборки
+const getCleaningInstructions = async (typeOfCleaning) => {
+    try {
+        const fullContent = await getGoogleDocsContent(googleDocumentId);
+        const sections = fullContent.split("===РАЗДЕЛИТЕЛЬ===");
+
+        // Найти нужный раздел с соответствующим типом уборки
+        const section = sections.find(section => section.toLowerCase().includes(typeOfCleaning.toLowerCase())).trim()
+
+        if (!section) {
+            console.error(`Раздел для "${typeOfCleaning}" не найден в документе.`);
+            return `Раздел для "${typeOfCleaning}" не найден в документе.`;
+        }
+
+        return section;
+    } catch (error) {
+        console.error('Произошла ошибка при получении содержимого документа:', error);
+        return 'Произошла ошибка при получении содержимого документа:'
+    }
+}
+
+const sendUnpaidOrdersReminder = async () => {
+    try {
+        const orders = await fetchDataAndProcessOrders(50);
+
+        for (const { id, name, address, check, phone, date, executor, parameters } of orders) {
+            let message = `У Вас есть неоплаченный заказ\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
+
+            if (check === null) {
+                message += '\n\nФото чека не добавлено';
+
+                const inlineKeyboard = {
+                    inline_keyboard: [
+                        [{ text: 'Отправить фото чека', callback_data: 'send_receipt_photo_' + id }],
+                        [{ text: 'Не могу отправить фото чека', callback_data: 'cannot_send_receipt_photo_' + id }],
+                    ]
+                };
+
+                // Находим исполнителя по имени
+                const worker = workers.find(w => w.name === executor);
+
+                // Если исполнитель найден, отправляем ему сообщение
+                if (worker) {
+                    await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' });
+                } else {
+                    console.log(`Исполнитель не найден для заказа с ID ${id}`);
+                }
+            }
+        }
+    } catch (error) {
+        console.error("An error occurred:", error);
+        console.error(error.stack);
+    }
+};
+
+const sendCancelOrdersReminder = async () => {
+    try {
+        const orders = await fetchDataAndProcessOrders(50);
+
+        for (const { id, name, address, phone, date, executor, parameters, reasonForCancellation } of orders) {
+            if (reasonForCancellation) {
+                let message = `ЗАКАЗ ОТМЕНЕН!\n\nИмя клиента: ${name}\nПричина отказа: ${reasonForCancellation}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nТип уборки: ${typeOfCleaning}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
+                let messageForManager = `ЗАКАЗ ИСПОЛНИТЕЛЯ ${executor} ОТМЕНЕН!\n\nИмя клиента: ${name}\nПричина отказа: ${reasonForCancellation}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nТип уборки: ${typeOfCleaning}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}`;
+
+
+                await managers.map(manager => bot.telegram.sendMessage(manager.chatId, messageForManager));
+
+                // Находим исполнителя по имени
+                const worker = workers.find(w => w.name === executor);
+
+                // Если исполнитель найден, отправляем ему сообщение
+                if (worker) {
+                    await bot.telegram.sendMessage(worker.chatId, message);
+                } else {
+                    console.log(`Исполнитель не найден для заказа с ID ${id}`);
+                }
+            }
+        }
+    } catch (error) {
+        console.error("An error occurred:", error);
+        console.error(error.stack);
+    }
+};
+
+const fetchDataAndHandleOrders = async () => {
+    try {
+        const orders = await fetchDataAndProcessOrders();
+
+        await fetchDataAndSetTimers(orders);
+        await fetchDataAndSendLatestOrder(orders);
+    } catch (error) {
+        console.error("An error occurred:", error);
+    }
+}
+const fetchDataAndSetTimers = async (orders) => {
+    try {
+        const futureEvents = filterFutureEvents(orders);
+
+        // Очищаем и обновляем очередь таймеров
+        updateTimers(futureEvents);
+        console.log('upd timers | В очереди заказов -', timers.length)
+    } catch (error) {
+        console.error("An error occurred:", error);
+    }
+}
+
+// Функция для опроса сервера и отправки последнего заказа исполнителям
+const fetchDataAndSendLatestOrder = async (orders) => {
+    try {
+        // Проверка наличия и типа переменной orders
+        if (!Array.isArray(orders)) {
+            console.error("Invalid or undefined 'orders' array");
+            return;
+        }
+
+        // Получить последний ID заказа из файла
+        const lastOrderId = readLastOrderId();
+
+        // Если есть новые заказы и последний заказ не определен, отправить последний заказ
+        if (orders.length > 0 && lastOrderId === null) {
+            sendLatestOrderToWorkers(orders[orders.length - 1]);
+        }
+
+        // Сохранить ID последнего заказа
+        if (orders.length > 0) {
+            writeLastOrderId(orders[orders.length - 1].id);
+        }
+    } catch (error) {
+        console.error("An error occurred:", error);
+    }
+}
+
+// Функция для опроса сервера и получения списка заказов
 const fetchDataAndProcessOrders = async (limit) => {
     // вывод заказов с даты - 01 Jan 2023 00:00:00 GMT
     const createdAtDate = 1672531200;
@@ -769,6 +666,112 @@ const fetchDataAndProcessOrders = async (limit) => {
     }
 };
 
+
+// Функция для установки таймера
+const setNotificationTimer = (order) => {
+    const { id, name, address, phone, date, executor, parameters, typeOfCleaning } = order;
+
+    const notificationTime = parseDate(date) - new Date() - 15 * 60 * 1000; // 15 минут в миллисекундах
+
+    if (notificationTime > 0) {
+        const timerId = setTimeout(async () => {
+            // Здесь вызываете функцию отправки уведомления
+            console.log('Send notification for order:', order);
+            // Находим исполнителя по имени
+            const worker = workers.find(w => w.name === executor);
+
+            // Если исполнитель найден, отправляем ему сообщение
+            if (worker) {
+                const inlineKeyboard = {
+                    inline_keyboard: [
+                        [{ text: 'Отправить фото внешнего вида', callback_data: 'send_appearance_photo_' + id }],
+                        [{ text: 'Не могу отправить фото внешнего вида', callback_data: 'cannot_send_appearance_photo_' + id }],
+                        [{ text: 'Отправить фото чека', callback_data: 'send_receipt_photo_' + id }],
+                        [{ text: 'Не могу отправить фото чека', callback_data: 'cannot_send_receipt_photo_' + id }],
+                        [{ text: 'Памятка', callback_data: 'instruction_' + typeOfCleaning }],
+                    ]
+                };
+
+                const message = `У вас через 15 минут заказ!\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`
+                await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' });
+            } else {
+                console.log(`Исполнитель не найден для заказа с ID ${id}`);
+            }
+        }, notificationTime);
+
+        timers.push({ orderId: order.id, timerId });
+    }
+};
+
+// функция для отправки последнего заказа менеджеру
+const sendLatestOrderToWorkers = async (order) => {
+    try {
+        const { id, name, address, phone, date, parameters, typeOfCleaning } = order;
+
+        const inlineKeyboard = {
+            inline_keyboard: [
+                [{ text: 'Взять этот заказ', callback_data: 'get_this_order_' + id }],
+                [{ text: 'Отменить заказ', callback_data: 'cancel_this_order_' + id }],
+                [{ text: 'Послушать запись звонка', callback_data: 'listen_to_call_recording_' + id }],
+
+            ]
+        };
+
+        const message = `Новый заказ:\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`;
+
+        workers.map(async worker => {
+            await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard });
+        })
+    } catch (error) {
+        console.error("An error occurred while sending the latest order to worker:", error);
+    }
+};
+
+// функция для фильтрации будущих событий по полю date
+const filterFutureEvents = (orders) => {
+    const currentDate = new Date();
+
+    if (Array.isArray(orders)) {
+        return orders.filter(order => {
+            if (order.date && order.date !== 'не указано' && parseDate(order.date)) {
+                const orderDate = parseDate(order.date);
+                return orderDate > currentDate;
+            }
+        });
+    } else {
+        console.error('Orders is not an array or is undefined.');
+        return [];
+    }
+
+};
+
+// Функция для обновления очереди
+const updateTimers = (newOrders) => {
+    // Очищаем предыдущие таймеры
+    timers.forEach(({ timerId }) => clearTimeout(timerId));
+    timers.length = 0;
+
+    // Устанавливаем новые таймеры для новых заказов
+    newOrders.forEach(order => setNotificationTimer(order));
+};
+
+// Функция для чтения ID последнего заказа из файла
+const readLastOrderId = () => {
+    try {
+        const data = fs.readFileSync('lastOrderId.txt', 'utf8');
+        return parseInt(data);
+    } catch (error) {
+        // Если файл не существует или произошла ошибка при чтении, вернуть null
+        return null;
+    }
+};
+
+// Функция для записи ID последнего заказа в файл
+const writeLastOrderId = (id) => {
+    fs.writeFileSync('lastOrderId.txt', id.toString(), 'utf8');
+};
+
+// Функция для парсинга даты из строки
 const parseDate = (dateString) => {
     const [day, month, yearAndTime] = dateString.split('.');
     const [year, time] = yearAndTime.split(' ');
@@ -782,3 +785,18 @@ const localeDateStringParams = {
     month: '2-digit',
     year: 'numeric'
 };
+
+
+// Таймеры
+
+// Исполнителю о неоплаченных заказах в 10:00 и 16:00
+cron.schedule('0 10,16 * * *', sendUnpaidOrdersReminder);
+
+// Исполнителю и менеджерам об отмененных заказах в 10:00 и 16:00
+cron.schedule('10 10,16 * * *', sendCancelOrdersReminder);
+
+// уведомление за 15 мин до начала заказа
+// отслеживание появления нового заказа
+setInterval(() => {
+    fetchDataAndHandleOrders();
+}, 0.5 * 60 * 1000); // каждые 5 минут

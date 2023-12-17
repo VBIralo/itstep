@@ -688,7 +688,7 @@ const setNotificationTimer = (order) => {
                         [{ text: 'Не могу отправить фото внешнего вида', callback_data: 'cannot_send_appearance_photo_' + id }],
                         [{ text: 'Отправить фото чека', callback_data: 'send_receipt_photo_' + id }],
                         [{ text: 'Не могу отправить фото чека', callback_data: 'cannot_send_receipt_photo_' + id }],
-                        [{ text: 'Памятка', callback_data: 'instruction_' + typeOfCleaning }],
+                        [{ text: 'Инструкция по уборке', callback_data: 'instruction_' + typeOfCleaning }],
                     ]
                 };
 

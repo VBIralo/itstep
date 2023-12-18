@@ -33,7 +33,7 @@ const timers = [];
 const googleDocumentId = '1TPBVKx6apa8EsW1weN9FhEx3q3Xy869oRTqnAwoRHVI'; //генеральная уборка
 const { google } = require('googleapis');
 
-bot.start(async (ctx) => {
+bot.start((ctx) => {
     ctx.reply('Компания Cleaning Moscow благодарит вас за регистрацию.\n\nУзнать информацию о пользовании ботом можно нажав на команду /help',
         {
             reply_markup: {
@@ -47,7 +47,7 @@ bot.start(async (ctx) => {
         })
 })
 
-bot.help(async (ctx) => {
+bot.help((ctx) => {
     ctx.reply(`Взаимодействие с исполнителями в данном боте происходит посредством нажатия кнопок, в некоторых случаях с отправкой вами сообщений.
 \nТакже в данный бот будут приходить ваши новые заказы.\n\nЗа 15 минут до начала заказа придёт сообщение с вашим заказом.
 \nВ случае наличия неоплаченных заказов, вам будет направлено напоминание о том что необходимо отправить фото чека.
@@ -60,11 +60,13 @@ bot.help(async (ctx) => {
 bot.hears('Неоплаченные заказы', async (ctx) => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
+        const messageQueue = [];
+        let counter = 0;
 
-        for (const { id, name, address, check, phone, date, executor, parameters } of orders) {
+        for (const { id, name, address, check, phone, date, executor, parameters, reasonForAbsencePhotoReceipt } of orders) {
             let message = `Имя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
             const worker = workers.find(w => w.name === executor);
-            if (check === null && worker) {
+            if (check === null && worker && worker.chatId === ctx.from.id && !reasonForAbsencePhotoReceipt) {
                 message += '\n\nФото чека не добавлено';
 
                 const inlineKeyboard = {
@@ -74,9 +76,21 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
                     ]
                 };
 
-                await ctx.telegram.sendMessage(ctx.from.id, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' });
+                counter++;
+                messageQueue.push([ctx.from.id, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' }])
             }
         }
+
+        if (counter === 0) {
+            return ctx.reply('Неоплаченных заказов нет');
+        }
+
+        messageQueue.unshift([ctx.from.id, `У вас неоплаченных заказов - ${counter}`, {}]);
+
+        messageQueue.map(async m => {
+            await ctx.telegram.sendMessage(m[0], m[1], m[2]);
+        })
+
     } catch (error) {
         console.error("An error occurred:", error);
         console.error(error.stack);
@@ -88,12 +102,12 @@ bot.hears('Заказы на сегодня', async (ctx) => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
         const today = new Date().toLocaleDateString('en-GB', localeDateStringParams);
-        let counter = 0; // Инициализация переменной
+        let counter = 0;
         const message = [];
 
         for (const { name, address, phone, date, executor, parameters, typeOfCleaning } of orders) {
             const worker = workers.find(w => w.name === executor);
-            if (date && date !== 'не указано' && worker && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today) {
+            if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today) {
                 message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
                 counter++;
             }
@@ -105,7 +119,7 @@ bot.hears('Заказы на сегодня', async (ctx) => {
 
         message.unshift(`На сегодня заказов - ${counter}`);
 
-        await ctx.reply(message.join(''));
+        await ctx.reply(message.join(''), { parse_mode: 'Markdown' });
     } catch (error) {
         console.error("An error occurred:", error);
         console.error(error.stack);
@@ -119,12 +133,12 @@ bot.hears('Заказы на завтра', async (ctx) => {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         const formattedTomorrow = tomorrow.toLocaleDateString('en-GB', localeDateStringParams);
-        let counter = 0; // Инициализация переменной
+        let counter = 0;
         const message = [];
 
         for (const { name, address, phone, date, executor, parameters, typeOfCleaning } of orders) {
             const worker = workers.find(w => w.name === executor);
-            if (date && date !== 'не указано' && worker && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow) {
+            if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow) {
                 message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
                 counter++;
             }
@@ -136,7 +150,7 @@ bot.hears('Заказы на завтра', async (ctx) => {
 
         message.unshift(`На завтра заказов - ${counter}`);
 
-        await ctx.reply(message.join(''));
+        await ctx.reply(message.join(''), { parse_mode: 'Markdown' });
     } catch (error) {
         console.error("An error occurred:", error);
         console.error(error.stack);
@@ -147,15 +161,24 @@ bot.hears('Заказы на завтра', async (ctx) => {
 bot.hears('Архив заказов', async (ctx) => {
     try {
         const orders = await fetchDataAndProcessOrders(20);
-        const message = ['20 последних заказов:'];
+        const message = [];
+        let counter = 0;
 
-        for (const { name, address, phone, date, parameters, typeOfCleaning } of orders) {
-            if (date && date !== 'не указано' && parseDate(date) < new Date()) {
+        for (const { name, address, phone, date, parameters, typeOfCleaning, executor } of orders) {
+            const worker = workers.find(w => w.name === executor);
+            if (date && date !== 'не указано' && parseDate(date) < new Date() && worker && worker.chatId === ctx.from.id) {
                 message.push(`\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`);
+                counter++;
             }
         }
 
-        await ctx.reply(message.join(''));
+        if (counter === 0) {
+            return ctx.reply('Заказов в архиве нет');
+        }
+
+        message.unshift(`Заказов в архиве - ${counter}`);
+
+        await ctx.reply(message.join(''), { parse_mode: 'Markdown' });
     } catch (error) {
         console.error("An error occurred:", error);
         console.error(error.stack);
@@ -189,16 +212,13 @@ bot.hears('Свободные заказы', async (ctx) => {
         ctx.reply(`Свободных заказов - ${counter}`);
 
         await Promise.all(messages.map(([replyMarkup, message]) => {
-            return ctx.reply(message, { reply_markup: replyMarkup });
+            return ctx.reply(message, { reply_markup: replyMarkup, parse_mode: 'Markdown' });
         }));
     } catch (error) {
         console.error("An error occurred:", error);
         console.error(error.stack);
     }
 });
-
-
-
 
 bot.hears('Связаться с менеджером', async (ctx) => {
     const keyboard = Markup.inlineKeyboard(
@@ -311,7 +331,7 @@ bot.action(/^cannot_send_appearance_photo_(\d+)/g, async (ctx) => {
 
 bot.on('text', async (ctx) => {
     // Получаем шаг из сессии пользователя
-    const step = sessions[ctx.message.from.id].step;
+    const step = sessions[ctx.message.from.id].step ?? null;
 
     if ((step && step.startsWith('cannot_send_appearance_photo')) || (step && step.startsWith('cannot_send_receipt_photo'))) {
         // Здесь обрабатываем ответ пользователя
@@ -560,14 +580,14 @@ const sendCancelOrdersReminder = async () => {
                 let messageForManager = `ЗАКАЗ ИСПОЛНИТЕЛЯ ${executor} ОТМЕНЕН!\n\nИмя клиента: ${name}\nПричина отказа: ${reasonForCancellation}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nТип уборки: ${typeOfCleaning}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}`;
 
 
-                await managers.map(manager => bot.telegram.sendMessage(manager.chatId, messageForManager));
+                await managers.map(manager => bot.telegram.sendMessage(manager.chatId, messageForManager, { parse_mode: 'Markdown' }));
 
                 // Находим исполнителя по имени
                 const worker = workers.find(w => w.name === executor);
 
                 // Если исполнитель найден, отправляем ему сообщение
                 if (worker) {
-                    await bot.telegram.sendMessage(worker.chatId, message);
+                    await bot.telegram.sendMessage(worker.chatId, message, { parse_mode: 'Markdown' });
                 } else {
                     console.log(`Исполнитель не найден для заказа с ID ${id}`);
                 }
@@ -595,7 +615,7 @@ const fetchDataAndSetTimers = async (orders) => {
 
         // Очищаем и обновляем очередь таймеров
         updateTimers(futureEvents);
-        console.log('upd timers | В очереди заказов -', timers.length)
+        console.log('upd timers | В очереди заказов -', timers.length, timers)
     } catch (error) {
         console.error("An error occurred:", error);
     }
@@ -614,14 +634,19 @@ const fetchDataAndSendLatestOrder = async (orders) => {
         const lastOrderId = readLastOrderId();
 
         // Если есть новые заказы и последний заказ не определен, отправить последний заказ
-        if (orders.length > 0 && lastOrderId === null) {
-            sendLatestOrderToWorkers(orders[orders.length - 1]);
+        if (orders.length > 0) {
+
+            // Получить последний ID заказа из ответа
+            const lastOrderIdFromResponse = orders[0].id;
+
+            if (lastOrderId === null || lastOrderId !== lastOrderIdFromResponse) {
+                sendLatestOrderToWorkers(orders[0]);
+
+                // Сохранить ID последнего заказа
+                writeLastOrderId(lastOrderIdFromResponse);
+            }
         }
 
-        // Сохранить ID последнего заказа
-        if (orders.length > 0) {
-            writeLastOrderId(orders[orders.length - 1].id);
-        }
     } catch (error) {
         console.error("An error occurred:", error);
     }
@@ -633,7 +658,7 @@ const fetchDataAndProcessOrders = async (limit) => {
     const createdAtDate = 1672531200;
 
     try {
-        const response = await fetch(`https://direct.lptracker.ru/lead/103451/list?offset=0&limit=${limit}&sort[updated_at]=3&filter[created_at_from]=${createdAtDate}`, { headers: { token: lpTrackerToken } });
+        const response = await fetch(`https://direct.lptracker.ru/lead/103451/list?offset=0&limit=${limit}&sort[created_at]=3&filter[created_at_from]=${createdAtDate}`, { headers: { token: lpTrackerToken } });
         const data = await response.json();
 
         if (!data.result || data.result.length === 0) {
@@ -642,9 +667,9 @@ const fetchDataAndProcessOrders = async (limit) => {
         }
 
         return data.result.map(({ id, custom, contact }) => {
-            const address = custom.find(object => object.name === 'Адрес')?.value || 'не указано';
+            const address = ("`" + custom.find(object => object.name === 'Адрес')?.value + "`") || 'не указано';
             const check = custom.find(object => object.name === 'Чек')?.value || null;
-            const phone = contact?.details?.find(detail => detail.type === 'phone')?.data || 'не указано';
+            const phone = ('+' + contact?.details?.find(detail => detail.type === 'phone')?.data) || 'не указано';
             const date = custom.find(object => object.name === 'Дата выполнения сделки')?.value || 'не указано';
             const executor = custom.find(object => object.name === 'Исполнитель')?.value[0] || 'не указано';
             const name = contact?.name || 'не указано';
@@ -652,8 +677,9 @@ const fetchDataAndProcessOrders = async (limit) => {
             const typeOfCleaning = custom.find(object => object.name === 'Вид уборки')?.value[0] || 'не указано';
             const isFree = custom.find(object => object.name === 'Свободный заказ')?.value?.[0] === 'Да';
             const reasonForCancellation = custom.find(object => object.name === 'Причина отмены заказа')?.value;
+            const reasonForAbsencePhotoReceipt = custom.find(object => object.name === 'Почему не отправлено фото чека?')?.value;
 
-            return { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, isFree, reasonForCancellation };
+            return { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, isFree, reasonForCancellation, reasonForAbsencePhotoReceipt };
         });
     } catch (error) {
         console.error("An error occurred:", error);
@@ -716,7 +742,9 @@ const sendLatestOrderToWorkers = async (order) => {
         const message = `Новый заказ:\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`;
 
         workers.map(async worker => {
-            await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard });
+            await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' })
+                .then(console.log(worker.chatId, 'new order OK'))
+                .catch(err => console.error(worker.chatId, 'new order error: ', err))
         })
     } catch (error) {
         console.error("An error occurred while sending the latest order to worker:", error);
@@ -793,6 +821,7 @@ cron.schedule('10 10,16 * * *', sendCancelOrdersReminder);
 
 // уведомление за 15 мин до начала заказа
 // отслеживание появления нового заказа
+fetchDataAndHandleOrders();
 setInterval(() => {
     fetchDataAndHandleOrders();
-}, 0.5 * 60 * 1000); // каждые 5 минут
+}, 1 * 60 * 1000); // каждые 1 минут

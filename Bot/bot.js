@@ -522,17 +522,17 @@ const getCleaningInstructions = async (typeOfCleaning) => {
         const sections = fullContent.split("===РАЗДЕЛИТЕЛЬ===");
 
         // Найти нужный раздел с соответствующим типом уборки
-        const section = sections.find(section => section.toLowerCase().includes(typeOfCleaning.toLowerCase())).trim()
+        const section = sections.find(section => section.toLowerCase().includes(typeOfCleaning.toLowerCase()))
 
         if (!section) {
             console.error(`Раздел для "${typeOfCleaning}" не найден в документе.`);
-            return `Раздел для "${typeOfCleaning}" не найден в документе.`;
+            return `Инструкция для "${typeOfCleaning}" не найдена.\nСвяжитесь с менеджером.`;
         }
 
-        return section;
+        return section.trim();
     } catch (error) {
         console.error('Произошла ошибка при получении содержимого документа:', error);
-        return 'Произошла ошибка при получении содержимого документа:'
+        return 'Произошла ошибка при получении инструкции.\nСвяжитесь с менеджером.'
     }
 }
 

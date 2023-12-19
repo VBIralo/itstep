@@ -615,7 +615,7 @@ const fetchDataAndSetTimers = async (orders) => {
 
         // Очищаем и обновляем очередь таймеров
         updateTimers(futureEvents);
-        console.log('upd timers | В очереди заказов -', timers.length, timers)
+        console.log('upd timers | В очереди заказов -', timers.length, '\n' + timers.map(t => t.orderId + ' ' + t.targetTime).join('\n'))
     } catch (error) {
         console.error("An error occurred:", error);
     }
@@ -721,7 +721,9 @@ const setNotificationTimer = (order) => {
             }
         }, notificationTime);
 
-        timers.push({ orderId: order.id, timerId });
+        const targetTime = new Date(Date.now() + notificationTime).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+
+        timers.push({ orderId: order.id, targetTime, timerId });
     }
 };
 
@@ -732,7 +734,6 @@ const sendLatestOrderToWorkers = async (order) => {
 
         const inlineKeyboard = {
             inline_keyboard: [
-                [{ text: 'Взять этот заказ', callback_data: 'get_this_order_' + id }],
                 [{ text: 'Отменить заказ', callback_data: 'cancel_this_order_' + id }],
                 [{ text: 'Послушать запись звонка', callback_data: 'listen_to_call_recording_' + id }],
 

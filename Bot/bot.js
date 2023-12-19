@@ -192,7 +192,7 @@ bot.hears('Свободные заказы', async (ctx) => {
         const messages = [];
 
         for (const { id, name, address, phone, date, parameters, isFree, typeOfCleaning } of orders) {
-            if (isFree) {
+            if (isFree && parseDate(date) >= new Date()) {
                 messages.push([
                     {
                         inline_keyboard: [

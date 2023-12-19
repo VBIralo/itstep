@@ -228,7 +228,7 @@ bot.hears('Связаться с менеджером', async (ctx) => {
     ctx.reply('Контакты менеджеров', keyboard)
 });
 
-bot.action(/get_this_order_(\d+)/g, (ctx) => {
+bot.action(/^get_this_order_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     const from = ctx.update.callback_query.from;
 
@@ -257,17 +257,17 @@ bot.action(/^send_appearance_photo_(\d+)/g, (ctx) => {
 });
 
 bot.on('photo', async (ctx) => {
-    const sessionStep = sessions[ctx.message.from.id].step
-    const regExpReceipt = /receipt_photo_(\d+)/;
-    const regExpAppearence = /appearance_photo_(\d+)/;
+    const sessionStep = sessions[ctx.message.from.id].step ?? null;
+    const regExpReceipt = /^receipt_photo_(\d+)/;
+    const regExpAppearence = /^appearance_photo_(\d+)/;
 
-    if (regExpReceipt.test(sessionStep)) {
+    if (sessionStep && regExpReceipt.test(sessionStep)) {
         const leadId = sessionStep.match(regExpReceipt)[1];
 
         uploadTelegramPhotoToLPTracker(ctx, leadId, 'receipt');
     }
 
-    if (regExpAppearence.test(sessionStep)) {
+    if (sessionStep && regExpAppearence.test(sessionStep)) {
         const leadId = sessionStep.match(regExpAppearence)[1];
 
         uploadTelegramPhotoToLPTracker(ctx, leadId, 'appearance');
@@ -339,8 +339,8 @@ bot.on('text', async (ctx) => {
 
         // Разделяем значение шага, чтобы получить messageId и action
         const [action, messageId] = step.split('|');
-        const actionType = action.match(/cannot_send_(receipt|appearance)_photo_(\d+)/)[1];
-        const leadId = action.match(/cannot_send_(receipt|appearance)_photo_(\d+)/)[2];
+        const actionType = action.match(/^cannot_send_(receipt|appearance)_photo_(\d+)/)[1];
+        const leadId = action.match(/^cannot_send_(receipt|appearance)_photo_(\d+)/)[2];
 
         // Редактируем предыдущее сообщение бота с новым текстом
         await ctx.telegram.editMessageText(ctx.chat.id, messageId, null, `Ваш ответ, почему вы не можете прислать фото, записан: ${userReason}`);
@@ -359,7 +359,7 @@ bot.on('text', async (ctx) => {
     if (step && step.startsWith('cancel_this_order_')) {
         // Здесь обрабатываем ответ пользователя
         const userReason = ctx.message.text;
-        const leadId = step.match(/cancel_this_order_(\d+)/)[1];
+        const leadId = step.match(/^cancel_this_order_(\d+)/)[1];
 
         ctx.reply(`Ваш ответ, почему вы не можете взять этот заказ, записан: ${userReason}`);
 

@@ -580,7 +580,7 @@ const sendCancelOrdersReminder = async () => {
                 let messageForManager = `ЗАКАЗ ИСПОЛНИТЕЛЯ ${executor} ОТМЕНЕН!\n\nИмя клиента: ${name}\nПричина отказа: ${reasonForCancellation}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nТип уборки: ${typeOfCleaning}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}`;
 
 
-                await managers.map(manager => bot.telegram.sendMessage(manager.chatId, messageForManager, { parse_mode: 'Markdown' }));
+                managers.map(async manager => await bot.telegram.sendMessage(manager.chatId, messageForManager, { parse_mode: 'Markdown' }));
 
                 // Находим исполнителя по имени
                 const worker = workers.find(w => w.name === executor);
@@ -820,7 +820,7 @@ const localeDateStringParams = {
 cron.schedule('0 10,16 * * *', sendUnpaidOrdersReminder);
 
 // Исполнителю и менеджерам об отмененных заказах в 10:00 и 16:00
-cron.schedule('10 10,16 * * *', sendCancelOrdersReminder);
+cron.schedule('1 10,16 * * *', sendCancelOrdersReminder);
 
 // уведомление за 15 мин до начала заказа
 // отслеживание появления нового заказа

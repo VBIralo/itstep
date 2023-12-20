@@ -730,7 +730,9 @@ const setNotificationTimer = (order) => {
 // функция для отправки последнего заказа менеджеру
 const sendLatestOrderToWorkers = async (order) => {
     try {
-        const { id, name, address, phone, date, parameters, typeOfCleaning } = order;
+        const { id, name, address, phone, date, parameters, typeOfCleaning, executor } = order;
+
+        const worker = workers.find(w => w.name === executor);
 
         const inlineKeyboard = {
             inline_keyboard: [
@@ -742,11 +744,11 @@ const sendLatestOrderToWorkers = async (order) => {
 
         const message = `Новый заказ:\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`;
 
-        workers.map(async worker => {
+        if (worker) {
             await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' })
                 .then(console.log(worker.chatId, 'new order OK'))
                 .catch(err => console.error(worker.chatId, 'new order error: ', err))
-        })
+        }
     } catch (error) {
         console.error("An error occurred while sending the latest order to worker:", error);
     }

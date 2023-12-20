@@ -601,7 +601,7 @@ const sendCancelOrdersReminder = async () => {
 
 const fetchDataAndHandleOrders = async () => {
     try {
-        const orders = await fetchDataAndProcessOrders();
+        const orders = await fetchDataAndProcessOrders(50);
 
         await fetchDataAndSetTimers(orders);
         await fetchDataAndSendLatestOrder(orders);
@@ -661,7 +661,7 @@ const fetchDataAndProcessOrders = async (limit) => {
         const response = await fetch(`https://direct.lptracker.ru/lead/103451/list?offset=0&limit=${limit}&sort[created_at]=3&filter[created_at_from]=${createdAtDate}`, { headers: { token: lpTrackerToken } });
         const data = await response.json();
 
-        if (!data.result || data.result.length === 0) {
+        if (data || !data.result || data.result.length === 0) {
             console.log('Массив данных пуст или не содержит заказов.');
             return [];
         }

@@ -63,8 +63,8 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
         const messageQueue = [];
         let counter = 0;
 
-        for (const { id, name, address, check, phone, date, executor, parameters, reasonForAbsencePhotoReceipt } of orders) {
-            let message = `Имя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
+        for (const { id, name, address, check, phone, date, executor, parameters, reasonForAbsencePhotoReceipt, cost, takeTheseThings } of orders) {
+            let message = generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings });
             const worker = workers.find(w => w.name === executor);
             if (check === null && worker && worker.chatId === ctx.from.id && !reasonForAbsencePhotoReceipt) {
                 message += '\n\nФото чека не добавлено';
@@ -105,10 +105,10 @@ bot.hears('Заказы на сегодня', async (ctx) => {
         let counter = 0;
         const message = [];
 
-        for (const { name, address, phone, date, executor, parameters, typeOfCleaning } of orders) {
+        for (const { name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings } of orders) {
             const worker = workers.find(w => w.name === executor);
             if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today) {
-                message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
+                message.push(`\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning }));
                 counter++;
             }
         }
@@ -136,10 +136,10 @@ bot.hears('Заказы на завтра', async (ctx) => {
         let counter = 0;
         const message = [];
 
-        for (const { name, address, phone, date, executor, parameters, typeOfCleaning } of orders) {
+        for (const { name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings } of orders) {
             const worker = workers.find(w => w.name === executor);
             if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow) {
-                message.push(`\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`);
+                message.push(`\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning }));
                 counter++;
             }
         }
@@ -164,10 +164,10 @@ bot.hears('Архив заказов', async (ctx) => {
         const message = [];
         let counter = 0;
 
-        for (const { name, address, phone, date, parameters, typeOfCleaning, executor } of orders) {
+        for (const { name, address, phone, date, parameters, typeOfCleaning, executor, cost, takeTheseThings } of orders) {
             const worker = workers.find(w => w.name === executor);
             if (date && date !== 'не указано' && parseDate(date) < new Date() && worker && worker.chatId === ctx.from.id) {
-                message.push(`\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`);
+                message.push(`\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning }));
                 counter++;
             }
         }
@@ -191,7 +191,7 @@ bot.hears('Свободные заказы', async (ctx) => {
         let counter = 0;
         const messages = [];
 
-        for (const { id, name, address, phone, date, parameters, isFree, typeOfCleaning } of orders) {
+        for (const { id, name, address, phone, date, parameters, isFree, typeOfCleaning, cost, takeTheseThings } of orders) {
             if (isFree && parseDate(date) >= new Date()) {
                 messages.push([
                     {
@@ -199,7 +199,7 @@ bot.hears('Свободные заказы', async (ctx) => {
                             [{ text: 'Взять этот заказ', callback_data: `get_this_order_${id}` }]
                         ]
                     },
-                    `Имя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`
+                    generateMessage({ name, address, phone, date, parameters, cost, takeTheseThings, typeOfCleaning })
                 ]);
                 counter++;
             }
@@ -540,8 +540,8 @@ const sendUnpaidOrdersReminder = async () => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
 
-        for (const { id, name, address, check, phone, date, executor, parameters, typeOfCleaning } of orders) {
-            let message = `У Вас есть неоплаченный заказ\n\nИмя клиента: ${name}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
+        for (const { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings } of orders) {
+            let message = `У Вас есть неоплаченный заказ\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
 
             if (check === null) {
                 message += '\n\nФото чека не добавлено';
@@ -574,10 +574,10 @@ const sendCancelOrdersReminder = async () => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
 
-        for (const { id, name, address, phone, date, executor, parameters, reasonForCancellation, typeOfCleaning } of orders) {
+        for (const { id, name, address, phone, date, executor, parameters, reasonForCancellation, typeOfCleaning, cost, takeTheseThings } of orders) {
             if (reasonForCancellation) {
-                let message = `ЗАКАЗ ОТМЕНЕН!\n\nИмя клиента: ${name}\nПричина отказа: ${reasonForCancellation}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nТип уборки: ${typeOfCleaning}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}\nИсполнитель: ${executor}`;
-                let messageForManager = `ЗАКАЗ ИСПОЛНИТЕЛЯ ${executor} ОТМЕНЕН!\n\nИмя клиента: ${name}\nПричина отказа: ${reasonForCancellation}\nАдрес клиента: ${address}\nТелефон клиента: ${phone}\nТип уборки: ${typeOfCleaning}\nДата и время заказа: ${date}\nПараметры заказа: ${parameters}`;
+                let message = `ЗАКАЗ ОТМЕНЕН!\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
+                let messageForManager = `ЗАКАЗ ИСПОЛНИТЕЛЯ ${executor} ОТМЕНЕН!\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
 
 
                 managers.map(async manager => await bot.telegram.sendMessage(manager.chatId, messageForManager, { parse_mode: 'Markdown' }));
@@ -661,7 +661,7 @@ const fetchDataAndProcessOrders = async (limit) => {
         const response = await fetch(`https://direct.lptracker.ru/lead/103451/list?offset=0&limit=${limit}&sort[created_at]=3&filter[created_at_from]=${createdAtDate}`, { headers: { token: lpTrackerToken } });
         const data = await response.json();
 
-        if (data || !data.result || data.result.length === 0) {
+        if (!data || !data.result || data.result.length === 0) {
             console.log('Массив данных пуст или не содержит заказов.');
             return [];
         }
@@ -674,12 +674,17 @@ const fetchDataAndProcessOrders = async (limit) => {
             const executor = custom.find(object => object.name === 'Исполнитель')?.value[0] || 'не указано';
             const name = contact?.name || 'не указано';
             const parameters = custom.find(object => object.name === 'Важная информация')?.value || 'не указано';
+            const cost = custom.find(object => object.name === 'Стоимость')?.value || 'не указано';
+            const takeTheseThings = custom.find(object => object.name === 'Обязательно взять')?.value || 'не указано';
             const typeOfCleaning = custom.find(object => object.name === 'Вид уборки')?.value[0] || 'не указано';
             const isFree = custom.find(object => object.name === 'Свободный заказ')?.value?.[0] === 'Да';
             const reasonForCancellation = custom.find(object => object.name === 'Причина отмены заказа')?.value;
             const reasonForAbsencePhotoReceipt = custom.find(object => object.name === 'Почему не отправлено фото чека?')?.value;
 
-            return { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, isFree, reasonForCancellation, reasonForAbsencePhotoReceipt };
+            return {
+                id, name, address, check, phone, date, executor, parameters, typeOfCleaning,
+                isFree, reasonForCancellation, reasonForAbsencePhotoReceipt, cost, takeTheseThings
+            };
         });
     } catch (error) {
         console.error("An error occurred:", error);
@@ -691,7 +696,7 @@ const fetchDataAndProcessOrders = async (limit) => {
 
 // Функция для установки таймера
 const setNotificationTimer = (order) => {
-    const { id, name, address, phone, date, executor, parameters, typeOfCleaning } = order;
+    const { id, name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings } = order;
 
     const notificationTime = parseDate(date) - new Date() - 15 * 60 * 1000; // 15 минут в миллисекундах
 
@@ -714,7 +719,7 @@ const setNotificationTimer = (order) => {
                     ]
                 };
 
-                const message = `У вас через 15 минут заказ!\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`
+                const message = `У вас через 15 минут заказ!\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
                 await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' });
             } else {
                 console.log(`Исполнитель не найден для заказа с ID ${id}`);
@@ -730,7 +735,7 @@ const setNotificationTimer = (order) => {
 // функция для отправки последнего заказа менеджеру
 const sendLatestOrderToWorkers = async (order) => {
     try {
-        const { id, name, address, phone, date, parameters, typeOfCleaning, executor } = order;
+        const { id, name, address, phone, date, parameters, typeOfCleaning, executor, cost, takeTheseThings } = order;
 
         const worker = workers.find(w => w.name === executor);
 
@@ -742,7 +747,7 @@ const sendLatestOrderToWorkers = async (order) => {
             ]
         };
 
-        const message = `Новый заказ:\n\nИмя клиента: ${name}\nАдрес: ${address}\nТелефон: ${phone}\nДата и время заказа: ${date}\nТип уборки: ${typeOfCleaning}\nПараметры заказа: ${parameters}`;
+        const message = `Новый заказ:\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
 
         if (worker) {
             await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' })
@@ -805,6 +810,21 @@ const parseDate = (dateString) => {
     const [hours, minutes] = time.split(':');
 
     return new Date(year, month - 1, day, hours, minutes);
+};
+
+const generateMessage = (fields) => {
+    const messageParts = [
+        fields.name && `Имя клиента: ${fields.name}`,
+        fields.address && `Адрес: ${fields.address}`,
+        fields.date && `Дата и время заказа: ${fields.date}`,
+        fields.phone && `Телефон: ${fields.phone}`,
+        fields.takeTheseThings && `Обязательно привезти: ${fields.takeTheseThings}`,
+        fields.typeOfCleaning && `Тип уборки: ${fields.typeOfCleaning}`,
+        fields.executor && `Исполнитель: ${fields.executor}`,
+        fields.parameters && `Параметры заказа: ${fields.parameters}`
+    ];
+
+    return messageParts.filter(Boolean).join('\n');
 };
 
 const localeDateStringParams = {

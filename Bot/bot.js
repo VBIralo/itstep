@@ -540,10 +540,10 @@ const sendUnpaidOrdersReminder = async () => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
 
-        for (const { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings } of orders) {
+        for (const { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, reasonForAbsencePhotoReceipt } of orders) {
             let message = `У Вас есть неоплаченный заказ\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
 
-            if (check === null) {
+            if (check === null && !reasonForAbsencePhotoReceipt) {
                 message += '\n\nФото чека не добавлено';
 
                 const inlineKeyboard = {

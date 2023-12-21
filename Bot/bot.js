@@ -765,7 +765,7 @@ const filterFutureEvents = (orders) => {
 
     if (Array.isArray(orders)) {
         return orders.filter(order => {
-            if (order.date && order.date !== 'не указано' && parseDate(order.date)) {
+            if (order.date && order.date !== 'не указано' && parseDate(order.date) && !order.reasonForCancellation) {
                 const orderDate = parseDate(order.date);
                 return orderDate > currentDate;
             }

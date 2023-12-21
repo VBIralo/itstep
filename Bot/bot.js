@@ -192,7 +192,7 @@ bot.hears('Свободные заказы', async (ctx) => {
         const messages = [];
 
         for (const { id, name, address, phone, date, parameters, isFree, typeOfCleaning, cost, takeTheseThings } of orders) {
-            if (isFree && parseDate(date) >= new Date()) {
+            if (isFree && date && date !== 'не указано' && parseDate(date) >= new Date()) {
                 messages.push([
                     {
                         inline_keyboard: [
@@ -805,6 +805,7 @@ const writeLastOrderId = (id) => {
 
 // Функция для парсинга даты из строки
 const parseDate = (dateString) => {
+
     const [day, month, yearAndTime] = dateString.split('.');
     const [year, time] = yearAndTime.split(' ');
     const [hours, minutes] = time.split(':');

@@ -274,9 +274,9 @@ bot.on('photo', async (ctx) => {
     }
 });
 
-bot.action(/^instruction_(.+)/g, (ctx) => {
-    const typeOfCleaning = ctx.match[1];
-    //setSessionStep(ctx.update.callback_query.from.id, 'instruction_' + leadId);
+bot.action(/^instruction$/g, (ctx) => {
+    const ctxMessageText = ctx.update.callback_query.message.text;
+    const typeOfCleaning = ctxMessageText.match(/Тип уборки: (.+)\nИсполнитель/)[1];
 
     getCleaningInstructions(typeOfCleaning)
         .then(instruction => {
@@ -715,7 +715,7 @@ const setNotificationTimer = (order) => {
                         [{ text: 'Не могу отправить фото внешнего вида', callback_data: 'cannot_send_appearance_photo_' + id }],
                         [{ text: 'Отправить фото чека', callback_data: 'send_receipt_photo_' + id }],
                         [{ text: 'Не могу отправить фото чека', callback_data: 'cannot_send_receipt_photo_' + id }],
-                        [{ text: 'Инструкция по уборке', callback_data: 'instruction_' + typeOfCleaning }],
+                        [{ text: 'Инструкция по уборке', callback_data: 'instruction'}],
                     ]
                 };
 

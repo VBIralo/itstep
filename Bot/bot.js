@@ -350,7 +350,7 @@ bot.on('text', async (ctx) => {
 
         console.log(leadId, userReason)
 
-        putReasonToLPTracker(leadId, userReason, actionType)
+        putValueToLPTracker(leadId, userReason, actionType)
 
         // Сбрасываем шаг сессии
         await setSessionStep(ctx.chat.id, null);
@@ -363,7 +363,7 @@ bot.on('text', async (ctx) => {
 
         ctx.reply(`Ваш ответ, почему вы не можете взять этот заказ, записан: ${userReason}`);
 
-        putReasonToLPTracker(leadId, userReason, 'cancelingOrder');
+        putValueToLPTracker(leadId, userReason, 'cancelingOrder');
 
         // Сбрасываем шаг сессии
         await setSessionStep(ctx.chat.id, null);
@@ -427,17 +427,17 @@ const uploadTelegramPhotoToLPTracker = async (ctx, leadId, type) => {
 }
 
 /**
- * Помещает причину отказа отправки фото в LPTracker.
+ * Помещает значение в LPTracker.
  *
  * @param {number} leadId - Идентификатор лида на LPTracker.
- * @param {string} userReason - Причина отказа отправки фото.
- * @param {'receipt'|'appearance'} actionType - Тип фото ('receipt' либо 'appearance').
+ * @param {string | array} value - значение.
+ * @param {string} actionType - Тип действия поля.
  * @throws {Error} Если произошла ошибка при выполнении запроса к LPTracker.
- * @returns {Promise<void>} Обещание без значения, представляющее завершение операции.
+ * @returns {Promise<void>} Promise без значения, представляющее завершение операции.
  */
-const putReasonToLPTracker = async (leadId, userReason, actionType) => {
+const putValueToLPTracker = async (leadId, value, actionType) => {
     let fieldId;
-    // Запись в LPTracker
+
     try {
         switch (actionType) {
             case 'receipt':
@@ -448,6 +448,9 @@ const putReasonToLPTracker = async (leadId, userReason, actionType) => {
                 break;
             case 'cancelingOrder':
                 fieldId = '2133341'
+                break;
+            case 'isCancelOrderSentManager':
+                fieldId = '2141353'
                 break;
             default:
                 break;
@@ -461,7 +464,7 @@ const putReasonToLPTracker = async (leadId, userReason, actionType) => {
             method: "PUT",
             body: JSON.stringify({
                 custom: {
-                    [fieldId]: userReason
+                    [fieldId]: value
                 }
             })
         });
@@ -573,13 +576,15 @@ const sendUnpaidOrdersReminder = async () => {
 const sendCancelOrdersReminder = async () => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
-
-        for (const { name, address, phone, date, executor, parameters, reasonForCancellation, typeOfCleaning, cost, takeTheseThings } of orders) {
-            if (reasonForCancellation) {
+        for (const {id, name, address, phone, date, executor, parameters, reasonForCancellation, typeOfCleaning, cost, takeTheseThings, isCancelOrderSentManager } of orders) {
+            if (reasonForCancellation && !isCancelOrderSentManager) {
                 let messageForManager = `ЗАКАЗ ИСПОЛНИТЕЛЯ ${executor} ОТМЕНЕН!\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
 
 
-                managers.map(async manager => await bot.telegram.sendMessage(manager.chatId, messageForManager, { parse_mode: 'Markdown' }));
+                managers.map(async manager => {
+                    await bot.telegram.sendMessage(manager.chatId, messageForManager, { parse_mode: 'Markdown' });
+                    await putValueToLPTracker(id, ["Да"], 'isCancelOrderSentManager')
+                });
             }
         }
     } catch (error) {
@@ -656,23 +661,24 @@ const fetchDataAndProcessOrders = async (limit) => {
         }
 
         return data.result.map(({ id, custom, contact }) => {
-            const address = ("`" + custom.find(object => object.name === 'Адрес')?.value + "`") || 'не указано';
-            const check = custom.find(object => object.name === 'Чек')?.value || null;
-            const phone = ('+' + contact?.details?.find(detail => detail.type === 'phone')?.data) || 'не указано';
-            const date = custom.find(object => object.name === 'Дата выполнения сделки')?.value || 'не указано';
-            const executor = custom.find(object => object.name === 'Исполнитель')?.value[0] || 'не указано';
-            const name = contact?.name || 'не указано';
-            const parameters = custom.find(object => object.name === 'Важная информация')?.value || 'не указано';
-            const cost = custom.find(object => object.name === 'Стоимость')?.value || 'не указано';
-            const takeTheseThings = custom.find(object => object.name === 'Обязательно взять')?.value || 'не указано';
-            const typeOfCleaning = custom.find(object => object.name === 'Вид уборки')?.value[0] || 'не указано';
-            const isFree = custom.find(object => object.name === 'Свободный заказ')?.value?.[0] === 'Да';
-            const reasonForCancellation = custom.find(object => object.name === 'Причина отмены заказа')?.value;
-            const reasonForAbsencePhotoReceipt = custom.find(object => object.name === 'Почему не отправлено фото чека?')?.value;
+            const address = ("`" + custom.find(object => object.name === 'Адрес')?.value + "`") || 'не указано';                        // Адрес
+            const check = custom.find(object => object.name === 'Чек')?.value || null;                                                  // Чек
+            const phone = ('+' + contact?.details?.find(detail => detail.type === 'phone')?.data) || 'не указано';                      // Номер телефона
+            const date = custom.find(object => object.name === 'Дата выполнения сделки')?.value || 'не указано';                        // Дата выполнения сделки
+            const executor = custom.find(object => object.name === 'Исполнитель')?.value[0] || 'не указано';                            // Исполнитель заказа
+            const name = contact?.name || 'не указано';                                                                                 // Имя
+            const parameters = custom.find(object => object.name === 'Важная информация')?.value || 'не указано';                       // Важная информация
+            const cost = custom.find(object => object.name === 'Стоимость')?.value || 'не указано';                                     // Стоимость
+            const takeTheseThings = custom.find(object => object.name === 'Обязательно взять')?.value || 'не указано';                  // Обязательно взять
+            const typeOfCleaning = custom.find(object => object.name === 'Вид уборки')?.value[0] || 'не указано';                       // Вид уборки
+            const isFree = custom.find(object => object.name === 'Свободный заказ')?.value?.[0] === 'Да';                               // Свободный заказ
+            const isCancelOrderSentManager = custom.find(object => object.id === 2141353)?.value?.[0] === 'Да';             // Был ли отмененный заказ отправлен менеджеру
+            const reasonForCancellation = custom.find(object => object.name === 'Причина отмены заказа')?.value;                        // Причина отмены заказа
+            const reasonForAbsencePhotoReceipt = custom.find(object => object.name === 'Почему не отправлено фото чека?')?.value;       // Причина почему не отправлено фото чека
 
             return {
                 id, name, address, check, phone, date, executor, parameters, typeOfCleaning,
-                isFree, reasonForCancellation, reasonForAbsencePhotoReceipt, cost, takeTheseThings
+                isFree, reasonForCancellation, reasonForAbsencePhotoReceipt, cost, takeTheseThings, isCancelOrderSentManager
             };
         });
     } catch (error) {
@@ -830,8 +836,8 @@ const localeDateStringParams = {
 // Исполнителю о неоплаченных заказах в 10:00 и 16:00
 cron.schedule('0 10,16 * * *', sendUnpaidOrdersReminder);
 
-// Менеджерам об отмененных заказах в 16:00
-cron.schedule('1 16 * * *', sendCancelOrdersReminder);
+// Менеджерам об отмененных заказах в 16:01
+cron.schedule('01 16 * * *', sendCancelOrdersReminder);
 
 // уведомление за 15 мин до начала заказа
 // отслеживание появления нового заказа

@@ -63,10 +63,10 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
         const messageQueue = [];
         let counter = 0;
 
-        for (const { id, name, address, check, phone, date, executor, parameters, reasonForAbsencePhotoReceipt, cost, takeTheseThings } of orders) {
+        for (const { id, name, address, check, phone, date, executor, parameters, reasonForAbsencePhotoReceipt,reasonForCancellation, cost, takeTheseThings } of orders) {
             let message = generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings });
             const worker = workers.find(w => w.name === executor);
-            if (check === null && worker && worker.chatId === ctx.from.id && !reasonForAbsencePhotoReceipt) {
+            if (check === null && worker && worker.chatId === ctx.from.id && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
                 message += '\n\nФото чека не добавлено';
 
                 const inlineKeyboard = {
@@ -540,10 +540,10 @@ const sendUnpaidOrdersReminder = async () => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
 
-        for (const { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, reasonForAbsencePhotoReceipt } of orders) {
+        for (const { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, reasonForAbsencePhotoReceipt, reasonForCancellation} of orders) {
             let message = `У Вас есть неоплаченный заказ\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
 
-            if (check === null && !reasonForAbsencePhotoReceipt) {
+            if (check === null && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
                 message += '\n\nФото чека не добавлено';
 
                 const inlineKeyboard = {
@@ -574,23 +574,12 @@ const sendCancelOrdersReminder = async () => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
 
-        for (const { id, name, address, phone, date, executor, parameters, reasonForCancellation, typeOfCleaning, cost, takeTheseThings } of orders) {
+        for (const { name, address, phone, date, executor, parameters, reasonForCancellation, typeOfCleaning, cost, takeTheseThings } of orders) {
             if (reasonForCancellation) {
-                let message = `ЗАКАЗ ОТМЕНЕН!\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
                 let messageForManager = `ЗАКАЗ ИСПОЛНИТЕЛЯ ${executor} ОТМЕНЕН!\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
 
 
                 managers.map(async manager => await bot.telegram.sendMessage(manager.chatId, messageForManager, { parse_mode: 'Markdown' }));
-
-                // Находим исполнителя по имени
-                const worker = workers.find(w => w.name === executor);
-
-                // Если исполнитель найден, отправляем ему сообщение
-                if (worker) {
-                    await bot.telegram.sendMessage(worker.chatId, message, { parse_mode: 'Markdown' });
-                } else {
-                    console.log(`Исполнитель не найден для заказа с ID ${id}`);
-                }
             }
         }
     } catch (error) {
@@ -817,6 +806,7 @@ const generateMessage = (fields) => {
     const messageParts = [
         fields.name && `Имя клиента: ${fields.name}`,
         fields.address && `Адрес: ${fields.address}`,
+        fields.cost && `Стоимость: ${fields.cost}`,
         fields.date && `Дата и время заказа: ${fields.date}`,
         fields.phone && `Телефон: ${fields.phone}`,
         fields.takeTheseThings && `Обязательно привезти: ${fields.takeTheseThings}`,
@@ -835,13 +825,13 @@ const localeDateStringParams = {
 };
 
 
-// Таймеры
+// Рассылки
 
 // Исполнителю о неоплаченных заказах в 10:00 и 16:00
 cron.schedule('0 10,16 * * *', sendUnpaidOrdersReminder);
 
-// Исполнителю и менеджерам об отмененных заказах в 10:00 и 16:00
-cron.schedule('1 10,16 * * *', sendCancelOrdersReminder);
+// Менеджерам об отмененных заказах в 16:00
+cron.schedule('1 16 * * *', sendCancelOrdersReminder);
 
 // уведомление за 15 мин до начала заказа
 // отслеживание появления нового заказа

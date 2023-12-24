@@ -264,21 +264,21 @@ bot.on('photo', async (ctx) => {
     if (sessionStep && regExpReceipt.test(sessionStep)) {
         const leadId = sessionStep.match(regExpReceipt)[1];
 
-        uploadTelegramPhotoToLPTracker(ctx, leadId, 'receipt');
+        await uploadTelegramPhotoToLPTracker(ctx, leadId, 'receipt');
     }
 
     if (sessionStep && regExpAppearence.test(sessionStep)) {
         const leadId = sessionStep.match(regExpAppearence)[1];
 
-        uploadTelegramPhotoToLPTracker(ctx, leadId, 'appearance');
+        await uploadTelegramPhotoToLPTracker(ctx, leadId, 'appearance');
     }
 });
 
-bot.action(/^instruction$/g, (ctx) => {
+bot.action(/^instruction$/g, async (ctx) => {
     const ctxMessageText = ctx.update.callback_query.message.text;
     const typeOfCleaning = ctxMessageText.match(/Тип уборки: (.+)\nИсполнитель/)[1];
 
-    getCleaningInstructions(typeOfCleaning)
+    await getCleaningInstructions(typeOfCleaning)
         .then(instruction => {
             ctx.reply(instruction)
                 .then(ctx.answerCbQuery('', true))
@@ -350,7 +350,7 @@ bot.on('text', async (ctx) => {
 
         console.log(leadId, userReason)
 
-        putValueToLPTracker(leadId, userReason, actionType)
+        await putValueToLPTracker(leadId, userReason, actionType)
 
         // Сбрасываем шаг сессии
         await setSessionStep(ctx.chat.id, null);
@@ -363,7 +363,7 @@ bot.on('text', async (ctx) => {
 
         ctx.reply(`Ваш ответ, почему вы не можете взять этот заказ, записан: ${userReason}`);
 
-        putValueToLPTracker(leadId, userReason, 'cancelingOrder');
+        await putValueToLPTracker(leadId, userReason, 'cancelingOrder');
 
         // Сбрасываем шаг сессии
         await setSessionStep(ctx.chat.id, null);

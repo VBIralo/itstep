@@ -361,9 +361,11 @@ bot.on('text', async (ctx) => {
         const userReason = ctx.message.text;
         const leadId = step.match(/^cancel_this_order_(\d+)/)[1];
 
-        ctx.reply(`Ваш ответ, почему вы не можете взять этот заказ, записан: ${userReason}`);
+        ctx.reply(`Ваш ответ, почему вы не можете взять этот заказ, записан:\n${userReason}`);
 
         await putValueToLPTracker(leadId, userReason, 'cancelingOrder');
+        await putValueToLPTracker(leadId, ["Нет исполнителя"], 'writeExecutor');
+        await putValueToLPTracker(leadId, ["Да"], 'setOrderFree');
 
         // Сбрасываем шаг сессии
         await setSessionStep(ctx.chat.id, null);
@@ -451,6 +453,12 @@ const putValueToLPTracker = async (leadId, value, actionType) => {
                 break;
             case 'isCancelOrderSentManager':
                 fieldId = '2141353'
+                break;
+            case 'setOrderFree':
+                fieldId = '2106590'
+                break;
+            case 'writeExecutor':
+                fieldId = '2098950'
                 break;
             default:
                 break;
@@ -810,15 +818,15 @@ const parseDate = (dateString) => {
 
 const generateMessage = (fields) => {
     const messageParts = [
-        fields.name && `Имя клиента: ${fields.name}`,
-        fields.address && `Адрес: ${fields.address}`,
-        fields.cost && `Стоимость: ${fields.cost}`,
-        fields.date && `Дата и время заказа: ${fields.date}`,
-        fields.phone && `Телефон: ${fields.phone}`,
-        fields.takeTheseThings && `Обязательно привезти: ${fields.takeTheseThings}`,
-        fields.typeOfCleaning && `Тип уборки: ${fields.typeOfCleaning}`,
-        fields.executor && `Исполнитель: ${fields.executor}`,
-        fields.parameters && `Параметры заказа: ${fields.parameters}`
+        fields.name && `*Имя клиента:* ${fields.name}`,
+        fields.address && `*Адрес:* ${fields.address}`,
+        fields.cost && `*Стоимость:* ${fields.cost}`,
+        fields.date && `*Дата и время заказа:* ${fields.date}`,
+        fields.phone && `*Телефон:* ${fields.phone}`,
+        fields.takeTheseThings && `*Обязательно привезти:* ${fields.takeTheseThings}`,
+        fields.typeOfCleaning && `*Тип уборки:* ${fields.typeOfCleaning}`,
+        fields.executor && `*Исполнитель:* ${fields.executor}`,
+        fields.parameters && `*Параметры заказа:* ${fields.parameters}`
     ];
 
     return messageParts.filter(Boolean).join('\n');

@@ -528,6 +528,7 @@ const getGoogleDocsContent = async (documentId) => {
 
 // Обертка, которая извлекает нужный текст на основе типа уборки
 const getCleaningInstructions = async (typeOfCleaning) => {
+    console.log('Получение инструкции об уборке');
     try {
         const fullContent = await getGoogleDocsContent(googleDocumentId);
         const sections = fullContent.split("===РАЗДЕЛИТЕЛЬ===");
@@ -548,6 +549,7 @@ const getCleaningInstructions = async (typeOfCleaning) => {
 }
 
 const sendUnpaidOrdersReminder = async () => {
+    console.log('Рассылка уведолмений исполнителям об неоплаченных заказах');
     try {
         const orders = await fetchDataAndProcessOrders(50);
 
@@ -582,11 +584,12 @@ const sendUnpaidOrdersReminder = async () => {
 };
 
 const sendCancelOrdersReminder = async () => {
+    console.log('Рассылка уведолмений менеджерам об отмененных заказах');
     try {
         const orders = await fetchDataAndProcessOrders(50);
-        for (const { id, name, address, phone, date, executor, parameters, reasonForCancellation, typeOfCleaning, cost, takeTheseThings, isCancelOrderSentManager } of orders) {
+        for (const { id, name, address, phone, date, parameters, reasonForCancellation, typeOfCleaning, cost, takeTheseThings, isCancelOrderSentManager } of orders) {
             if (reasonForCancellation && !isCancelOrderSentManager) {
-                let messageForManager = `ЗАКАЗ ОТМЕНЕН!\n[Ссылка на лид LPT](https://my.lptracker.ru/#leads/card/${id})\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
+                let messageForManager = `ЗАКАЗ ОТМЕНЕН!\n[Ссылка на лид LPT](https://my.lptracker.ru/#leads/card/${id})\n\n` + generateMessage({ name, address, phone, date, parameters, reasonForCancellation, cost, takeTheseThings, typeOfCleaning });
 
 
                 managers.map(async manager => {
@@ -826,6 +829,7 @@ const generateMessage = (fields) => {
         fields.takeTheseThings && `*Обязательно привезти:* ${fields.takeTheseThings}`,
         fields.typeOfCleaning && `*Тип уборки:* ${fields.typeOfCleaning}`,
         fields.executor && `*Исполнитель:* ${fields.executor}`,
+        fields.reasonForCancellation && `*Причина отказа:* ${fields.reasonForCancellation}`,
         fields.parameters && `*Параметры заказа:* ${fields.parameters}`
     ];
 
@@ -842,10 +846,10 @@ const localeDateStringParams = {
 // Рассылки
 
 // Исполнителю о неоплаченных заказах в 10:00 и 16:00
-cron.schedule('0 10,16 * * *', sendUnpaidOrdersReminder);
+cron.schedule('5 0 10,16 * * *', sendUnpaidOrdersReminder);
 
 // Менеджерам об отмененных заказах в 16:01
-cron.schedule('01 16 * * *', sendCancelOrdersReminder);
+cron.schedule('30 0 16 * * *', sendCancelOrdersReminder);
 
 // уведомление за 15 мин до начала заказа
 // отслеживание появления нового заказа

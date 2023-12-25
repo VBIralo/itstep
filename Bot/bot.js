@@ -63,7 +63,7 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
         const messageQueue = [];
         let counter = 0;
 
-        for (const { id, name, address, check, phone, date, executor, parameters, reasonForAbsencePhotoReceipt,reasonForCancellation, cost, takeTheseThings } of orders) {
+        for (const { id, name, address, check, phone, date, executor, parameters, reasonForAbsencePhotoReceipt, reasonForCancellation, cost, takeTheseThings } of orders) {
             let message = generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings });
             const worker = workers.find(w => w.name === executor);
             if (check === null && worker && worker.chatId === ctx.from.id && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
@@ -233,7 +233,7 @@ bot.action(/^get_this_order_(\d+)/g, (ctx) => {
     const from = ctx.update.callback_query.from;
 
     ctx.reply('Ваше предложение отправлено менеджеру.\n\nОжидайте ответа менеджера в личных сообщениях.')
-    const message = `${from.firstName || from.username} хочет взяться за этот заказ\n\n[Ссылка на лид в LPT](https://my.lptracker.ru/#leads/card/${leadId})\n\n[Написать ${from.firstName || from.username}](tg://user?id=${from.id})`
+    const message = `${from.first_name || from.username || from.id} хочет взяться за этот заказ\n\n[Ссылка на лид в LPT](https://my.lptracker.ru/#leads/card/${leadId})\n\n[Написать ${from.first_name || from.username || from.id}](tg://user?id=${from.id})`
     return managers.map(manager => {
         ctx.answerCbQuery('', true);
         return bot.telegram.sendMessage(manager.chatId, message, { parse_mode: "MarkdownV2" }).catch(err => console.log(err));
@@ -551,7 +551,7 @@ const sendUnpaidOrdersReminder = async () => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
 
-        for (const { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, reasonForAbsencePhotoReceipt, reasonForCancellation} of orders) {
+        for (const { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, reasonForAbsencePhotoReceipt, reasonForCancellation } of orders) {
             let message = `У Вас есть неоплаченный заказ\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
 
             if (check === null && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
@@ -584,9 +584,9 @@ const sendUnpaidOrdersReminder = async () => {
 const sendCancelOrdersReminder = async () => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
-        for (const {id, name, address, phone, date, executor, parameters, reasonForCancellation, typeOfCleaning, cost, takeTheseThings, isCancelOrderSentManager } of orders) {
+        for (const { id, name, address, phone, date, executor, parameters, reasonForCancellation, typeOfCleaning, cost, takeTheseThings, isCancelOrderSentManager } of orders) {
             if (reasonForCancellation && !isCancelOrderSentManager) {
-                let messageForManager = `ЗАКАЗ ИСПОЛНИТЕЛЯ ${executor} ОТМЕНЕН!\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
+                let messageForManager = `ЗАКАЗ ОТМЕНЕН!\n[Ссылка на лид LPT](https://my.lptracker.ru/#leads/card/${id})\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
 
 
                 managers.map(async manager => {
@@ -718,7 +718,7 @@ const setNotificationTimer = (order) => {
                         [{ text: 'Не могу отправить фото внешнего вида', callback_data: 'cannot_send_appearance_photo_' + id }],
                         [{ text: 'Отправить фото чека', callback_data: 'send_receipt_photo_' + id }],
                         [{ text: 'Не могу отправить фото чека', callback_data: 'cannot_send_receipt_photo_' + id }],
-                        [{ text: 'Инструкция по уборке', callback_data: 'instruction'}],
+                        [{ text: 'Инструкция по уборке', callback_data: 'instruction' }],
                     ]
                 };
 

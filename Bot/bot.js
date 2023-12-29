@@ -68,12 +68,12 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
             let message = generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings });
             const worker = workers.find(w => w.name === executor);
             if (check === null && worker && worker.chatId === ctx.from.id && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
-                message += '\n\nФото чека не добавлено';
+                message += '\n\nСкриншот чека не добавлено';
 
                 const inlineKeyboard = {
                     inline_keyboard: [
-                        [{ text: 'Отправить фото чека', callback_data: 'send_receipt_photo_' + id }],
-                        [{ text: 'Не могу отправить фото чека', callback_data: 'cannot_send_receipt_photo_' + id }],
+                        [{ text: 'Отправить скриншот чека', callback_data: 'send_receipt_photo_' + id }],
+                        [{ text: 'Не могу отправить скриншот чека', callback_data: 'cannot_send_receipt_photo_' + id }],
                     ]
                 };
 
@@ -245,7 +245,7 @@ bot.action(/^send_receipt_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     setSessionStep(ctx.update.callback_query.from.id, 'receipt_photo_' + leadId);
 
-    ctx.reply('Пришлите фото чека')
+    ctx.reply('Пришлите скриншот чека')
         .then(ctx.answerCbQuery('', true))
 });
 
@@ -306,7 +306,7 @@ bot.action(/^cannot_send_receipt_photo_(\d+)/g, async (ctx) => {
     const leadId = ctx.match[1];
 
     // Спрашиваем у пользователя причину
-    await ctx.reply('Напишите причину, по которой вы не можете отправить фото чека.')
+    await ctx.reply('Напишите причину, по которой вы не можете отправить скриншот чека.')
         .then(response => {
             const messageId = response.message_id;
 
@@ -561,12 +561,12 @@ const sendUnpaidOrdersReminder = async () => {
             let message = `У Вас есть неоплаченный заказ\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
 
             if (check === null && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
-                message += '\n\nФото чека не добавлено';
+                message += '\n\nСкриншот чека не добавлено';
 
                 const inlineKeyboard = {
                     inline_keyboard: [
-                        [{ text: 'Отправить фото чека', callback_data: 'send_receipt_photo_' + id }],
-                        [{ text: 'Не могу отправить фото чека', callback_data: 'cannot_send_receipt_photo_' + id }],
+                        [{ text: 'Отправить скриншот чека', callback_data: 'send_receipt_photo_' + id }],
+                        [{ text: 'Не могу отправить скриншот чека', callback_data: 'cannot_send_receipt_photo_' + id }],
                     ]
                 };
 
@@ -691,7 +691,7 @@ const fetchDataAndProcessOrders = async (limit) => {
             const isFree = custom.find(object => object.name === 'Свободный заказ')?.value?.[0] === 'Да';                               // Свободный заказ
             const isCancelOrderSentManager = custom.find(object => object.id === 2141353)?.value?.[0] === 'Да';             // Был ли отмененный заказ отправлен менеджеру
             const reasonForCancellation = custom.find(object => object.name === 'Причина отмены заказа')?.value;                        // Причина отмены заказа
-            const reasonForAbsencePhotoReceipt = custom.find(object => object.name === 'Почему не отправлено фото чека?')?.value;       // Причина почему не отправлено фото чека
+            const reasonForAbsencePhotoReceipt = custom.find(object => object.name === 'Почему не отправлен скриншот чека?')?.value;       // Причина почему не отправлено фото чека
 
             return {
                 id, name, address, check, phone, date, executor, parameters, typeOfCleaning,
@@ -725,13 +725,13 @@ const setNotificationTimer = (order) => {
                     inline_keyboard: [
                         [{ text: 'Отправить фото внешнего вида', callback_data: 'send_appearance_photo_' + id }],
                         [{ text: 'Не могу отправить фото внешнего вида', callback_data: 'cannot_send_appearance_photo_' + id }],
-                        [{ text: 'Отправить фото чека', callback_data: 'send_receipt_photo_' + id }],
-                        [{ text: 'Не могу отправить фото чека', callback_data: 'cannot_send_receipt_photo_' + id }],
+                        [{ text: 'Отправить скриншот чека', callback_data: 'send_receipt_photo_' + id }],
+                        [{ text: 'Не могу отправить скриншот чека', callback_data: 'cannot_send_receipt_photo_' + id }],
                         [{ text: 'Инструкция по уборке', callback_data: 'instruction' }],
                     ]
                 };
 
-                const message = `У вас через 15 минут заказ!\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
+                const message = `_Через 15 минут у вас заказ, не забудьте отправить фото внешнего вида, чтобы мы понимали, что вы приехали на заказ вовремя, и готовы к работе!_\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
                 await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' });
             } else {
                 console.log(`Исполнитель не найден для заказа с ID ${id}`);
@@ -763,12 +763,12 @@ const sendLatestOrderToWorkers = async (order) => {
 
         if (worker) {
             await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' })
-            .then((ctx) => {
-                // Установить таймер на принятие заказа через 15 минут
-                acceptOrderTimers[order.id] = setTimeout(() => {
-                    acceptOrderAutomatically(id, ctx);
-                }, 15 * 60 * 1000);
-            })
+                .then((ctx) => {
+                    // Установить таймер на принятие заказа через 15 минут
+                    acceptOrderTimers[order.id] = setTimeout(() => {
+                        acceptOrderAutomatically(id, ctx);
+                    }, 15 * 60 * 1000);
+                })
                 .catch(err => console.error(worker.chatId, 'new order error: ', err))
         }
     } catch (error) {
@@ -829,9 +829,9 @@ const acceptOrderAutomatically = async (orderId, ctx) => {
             ]
         };
 
-         // Обновите сообщение, чтобы уведомить пользователя
-         await bot.telegram.editMessageReplyMarkup(ctx.chat.id, ctx.message_id, undefined, inlineKeyboard)
-        
+        // Обновите сообщение, чтобы уведомить пользователя
+        await bot.telegram.editMessageReplyMarkup(ctx.chat.id, ctx.message_id, undefined, inlineKeyboard)
+
     } catch (error) {
         console.error("An error occurred while accepting the order:", error);
     }

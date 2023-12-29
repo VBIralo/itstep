@@ -29,6 +29,7 @@ const managers = require("./managers.json");
 
 // Очередь тайцмеров напоминалок
 const timers = [];
+let acceptOrderTimers = {};
 
 const googleDocumentId = '1TPBVKx6apa8EsW1weN9FhEx3q3Xy869oRTqnAwoRHVI'; //генеральная уборка
 const { google } = require('googleapis');
@@ -460,6 +461,9 @@ const putValueToLPTracker = async (leadId, value, actionType) => {
             case 'writeExecutor':
                 fieldId = '2098950'
                 break;
+            case 'autoAcceptOrder':
+                fieldId = '2105539'
+                break;
             default:
                 break;
         }
@@ -608,6 +612,8 @@ const fetchDataAndHandleOrders = async () => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
 
+        //await sendLatestOrderToWorkers(orders[0])
+
         await fetchDataAndSetTimers(orders);
         await fetchDataAndSendLatestOrder(orders);
     } catch (error) {
@@ -753,11 +759,16 @@ const sendLatestOrderToWorkers = async (order) => {
             ]
         };
 
-        const message = `Новый заказ:\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
+        const message = `Новый заказ:\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning }) + '\n\n_Если заказ не будет отменён в течении 15 минут, то он автоматически будет считаться принятым!_';
 
         if (worker) {
             await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' })
-                .then(console.log(worker.chatId, 'new order OK'))
+            .then((ctx) => {
+                // Установить таймер на принятие заказа через 15 минут
+                acceptOrderTimers[order.id] = setTimeout(() => {
+                    acceptOrderAutomatically(id, ctx);
+                }, 15 * 60 * 1000);
+            })
                 .catch(err => console.error(worker.chatId, 'new order error: ', err))
         }
     } catch (error) {
@@ -801,6 +812,28 @@ const readLastOrderId = () => {
     } catch (error) {
         // Если файл не существует или произошла ошибка при чтении, вернуть null
         return null;
+    }
+};
+
+// функция для автоматического принятия заказа после 15 минут
+const acceptOrderAutomatically = async (orderId, ctx) => {
+    try {
+        await putValueToLPTracker(orderId, ["Да"], 'autoAcceptOrder')
+
+        clearTimeout(acceptOrderTimers[orderId]);
+
+        console.log(orderId, ctx)
+        const inlineKeyboard = {
+            inline_keyboard: [
+                [{ text: 'Послушать запись звонка', callback_data: 'listen_to_call_recording_' + orderId }],
+            ]
+        };
+
+         // Обновите сообщение, чтобы уведомить пользователя
+         await bot.telegram.editMessageReplyMarkup(ctx.chat.id, ctx.message_id, undefined, inlineKeyboard)
+        
+    } catch (error) {
+        console.error("An error occurred while accepting the order:", error);
     }
 };
 

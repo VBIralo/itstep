@@ -27,6 +27,9 @@ const setSessionStep = (userId, step) => {
 const workers = require("./workers.json");
 const managers = require("./managers.json");
 
+// Объект для хранения предыдущих времен заказов
+const previousOrderTimes = {};
+
 // Очередь тайцмеров напоминалок
 const timers = [];
 let acceptOrderTimers = {};
@@ -616,10 +619,15 @@ const fetchDataAndHandleOrders = async () => {
 
         await fetchDataAndSetTimers(orders);
         await fetchDataAndSendLatestOrder(orders);
+
+        // Проверка изменений во времени заказа
+        checkTimeChanges(orders);
     } catch (error) {
         console.error("An error occurred:", error);
     }
 }
+
+
 const fetchDataAndSetTimers = async (orders) => {
     try {
         const futureEvents = filterFutureEvents(orders);
@@ -702,6 +710,43 @@ const fetchDataAndProcessOrders = async (limit) => {
         console.error("An error occurred:", error);
         console.error(error.stack);
         return []; // Если произошла ошибка, возвращаем пустой массив
+    }
+};
+
+const checkTimeChanges = (orders) => {
+    orders.forEach(order => {
+        const orderId = order.id;
+
+        if (order.date && order.date !== 'не указано' && parseDate(order.date)) {
+            const currentOrderTime = parseDate(order.date);
+
+            // Если у нас есть предыдущее время для заказа
+            if (previousOrderTimes[orderId]) {
+                const previousOrderTime = previousOrderTimes[orderId];
+
+                // Если время заказа изменилось
+                if (currentOrderTime.getTime() !== previousOrderTime.getTime()) {
+                    notifyTimeChange(order);
+                }
+            }
+
+            // Обновляем предыдущее время для заказа
+            previousOrderTimes[orderId] = currentOrderTime;
+        }
+    });
+};
+
+const notifyTimeChange = (order) => {
+    // Получить исполнителя заказа
+    const executor = order.executor;
+
+    // Отправить уведомление об изменении времени заказа исполнителю
+    const worker = workers.find(w => w.name === executor);
+    if (worker) {
+        const message = `Внимание! Изменено время заказа:\n\n` + generateMessage(order);
+        bot.telegram.sendMessage(worker.chatId, message, { parse_mode: 'Markdown' })
+            .then(console.log(worker.chatId, 'time change notification OK'))
+            .catch(err => console.error(worker.chatId, 'time change notification error: ', err));
     }
 };
 

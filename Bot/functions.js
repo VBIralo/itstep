@@ -195,10 +195,10 @@ const sendUnpaidOrdersReminder = async (bot) => {
     try {
         const orders = await fetchDataAndProcessOrders(50);
 
-        for (const { id, name, address, check, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, reasonForAbsencePhotoReceipt, reasonForCancellation } of orders) {
+        for (const { id, name, address, receipt, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, reasonForAbsencePhotoReceipt, reasonForCancellation } of orders) {
             let message = `У Вас есть неоплаченный заказ\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
 
-            if (check === null && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
+            if (receipt === null && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
                 message += '\n\nСкриншот чека не добавлено';
 
                 const inlineKeyboard = {
@@ -404,10 +404,9 @@ const setNotificationTimer = (order, bot) => {
             if (worker) {
                 const inlineKeyboard = {
                     inline_keyboard: [
-                        [{ text: 'Отправить фото внешнего вида', callback_data: 'send_appearance_photo_' + id }],
-                        [{ text: 'Не могу отправить фото внешнего вида', callback_data: 'cannot_send_appearance_photo_' + id }],
-                        [{ text: 'Отправить скриншот чека', callback_data: 'send_receipt_photo_' + id }],
-                        [{ text: 'Не могу отправить скриншот чека', callback_data: 'cannot_send_receipt_photo_' + id }],
+                        [{ text: 'Фото внешнего вида / Не могу отправить фото', callback_data: 'send_appearance_photo_' + id }],
+                        [{ text: 'Скриншот чека / Не могу отправить скриншот', callback_data: 'send_receipt_photo_' + id }],
+                        [{ text: 'Отправить фото повреждений', callback_data: 'send_damage_photo_' + id }],
                         [{ text: 'Инструкция по уборке', callback_data: 'instruction' }],
                     ]
                 };
@@ -551,4 +550,14 @@ const generateMessage = (fields) => {
 };
 
 
-module.exports = { uploadTelegramPhotoToLPTracker, getCleaningInstructions, sendUnpaidOrdersReminder, sendCancelOrdersReminder, fetchDataAndHandleOrders, fetchDataAndProcessOrders, generateMessage, parseDate, putValueToLPTracker };
+module.exports = {
+    uploadTelegramPhotoToLPTracker,
+    getCleaningInstructions,
+    sendUnpaidOrdersReminder,
+    sendCancelOrdersReminder,
+    fetchDataAndHandleOrders,
+    fetchDataAndProcessOrders,
+    generateMessage,
+    parseDate,
+    putValueToLPTracker
+};

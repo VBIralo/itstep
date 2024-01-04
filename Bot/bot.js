@@ -59,16 +59,15 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
         const messageQueue = [];
         let counter = 0;
 
-        for (const { id, name, address, check, phone, date, executor, parameters, reasonForAbsencePhotoReceipt, reasonForCancellation, cost, takeTheseThings } of orders) {
+        for (const { id, name, address, receipt, phone, date, executor, parameters, reasonForAbsencePhotoReceipt, reasonForCancellation, cost, takeTheseThings } of orders) {
             let message = generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings });
             const worker = workers.find(w => w.name === executor);
-            if (check === null && worker && worker.chatId === ctx.from.id && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
+            if (!receipt && worker && worker.chatId === ctx.from.id && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
                 message += '\n\nСкриншот чека не добавлено';
 
                 const inlineKeyboard = {
                     inline_keyboard: [
-                        [{ text: 'Отправить скриншот чека', callback_data: 'send_receipt_photo_' + id }],
-                        [{ text: 'Не могу отправить скриншот чека', callback_data: 'cannot_send_receipt_photo_' + id }],
+                        [{ text: 'Скриншот чека / Не могу отправить скриншот', callback_data: 'send_receipt_photo_' + id }],
                     ]
                 };
 
@@ -240,7 +239,7 @@ bot.action(/^send_receipt_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     setSessionStep(ctx.update.callback_query.from.id, 'receipt_photo_' + leadId);
 
-    ctx.reply('Пришлите скриншот чека')
+    ctx.reply('Отправьте скриншот чека, а при невозможности отправки, напишите причину по которой вы не можете отправить скриншот')
         .then(ctx.answerCbQuery('', true))
 });
 
@@ -248,7 +247,7 @@ bot.action(/^send_appearance_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     setSessionStep(ctx.update.callback_query.from.id, 'appearance_photo_' + leadId);
 
-    ctx.reply('Пришлите фото внешнего вида')
+    ctx.reply('Отправьте фото внешнего вида, а при невозможности отправки, напишите причину по которой вы не можете отправить фото')
         .then(ctx.answerCbQuery('', true))
 });
 
@@ -297,52 +296,23 @@ bot.action(/^listen_to_call_recording_(\d+)/g, (ctx) => {
         .then(ctx.answerCbQuery('', true))
 });
 
-bot.action(/^cannot_send_receipt_photo_(\d+)/g, async (ctx) => {
-    const leadId = ctx.match[1];
-
-    // Спрашиваем у пользователя причину
-    await ctx.reply('Напишите причину, по которой вы не можете отправить скриншот чека.')
-        .then(response => {
-            const messageId = response.message_id;
-
-            // Сохраняем messageId в сессии, чтобы использовать его позже
-            setSessionStep(ctx.update.callback_query.from.id, 'cannot_send_receipt_photo_' + leadId + '|' + messageId);
-        })
-        .then(ctx.answerCbQuery('', true))
-});
-
-bot.action(/^cannot_send_appearance_photo_(\d+)/g, async (ctx) => {
-    const leadId = ctx.match[1];
-
-    // Спрашиваем у пользователя причину
-    await ctx.reply('Напишите причину, по которой вы не можете отправить фото внешнего вида.')
-        .then(response => {
-            const messageId = response.message_id;
-
-            // Сохраняем messageId в сессии, чтобы использовать его позже
-            setSessionStep(ctx.update.callback_query.from.id, 'cannot_send_appearance_photo_' + leadId + '|' + messageId);
-        })
-        .then(ctx.answerCbQuery('', true))
-});
-
 bot.on('text', async (ctx) => {
     // Получаем шаг из сессии пользователя
     const step = sessions[ctx.message.from.id].step ?? null;
 
-    if ((step && step.startsWith('cannot_send_appearance_photo')) || (step && step.startsWith('cannot_send_receipt_photo'))) {
+    if ((step && step.startsWith('appearance_photo')) || (step && step.startsWith('receipt_photo'))) {
         // Здесь обрабатываем ответ пользователя
         const userReason = ctx.message.text;
 
-        // Разделяем значение шага, чтобы получить messageId и action
-        const [action, messageId] = step.split('|');
-        const actionType = action.match(/^cannot_send_(receipt|appearance)_photo_(\d+)/)[1];
-        const leadId = action.match(/^cannot_send_(receipt|appearance)_photo_(\d+)/)[2];
-
-        // Редактируем предыдущее сообщение бота с новым текстом
-        await ctx.telegram.editMessageText(ctx.chat.id, messageId, null, `Ваш ответ, почему вы не можете прислать фото, записан: ${userReason}`);
-
         // Удаляем ответ пользователя
         await ctx.deleteMessage(ctx.message.message_id);
+
+        const actionType = step.match(/^(receipt|appearance)_photo_(\d+)/)[1];
+        const leadId = step.match(/^(receipt|appearance)_photo_(\d+)/)[2];
+
+        console.log('listen', step, actionType, leadId)
+        // Редактируем предыдущее сообщение бота с новым текстом
+        await ctx.telegram.sendMessage(ctx.chat.id, `Ваш ответ, почему вы не можете прислать фото, записан:\n_${userReason}_`, {parse_mode: "Markdown"});
 
         console.log(leadId, userReason)
 

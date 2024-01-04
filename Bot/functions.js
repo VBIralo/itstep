@@ -321,24 +321,24 @@ const fetchDataAndProcessOrders = async (limit) => {
         }
 
         return data.result.map(({ id, custom, contact }) => {
-            const address = ("`" + custom.find(object => object.name === 'Адрес')?.value + "`") || 'не указано';                        // Адрес
-            const check = custom.find(object => object.name === 'Чек')?.value || null;                                                  // Чек
-            const phone = ('+' + contact?.details?.find(detail => detail.type === 'phone')?.data) || 'не указано';                      // Номер телефона
-            const date = custom.find(object => object.name === 'Дата выполнения сделки')?.value || 'не указано';                        // Дата выполнения сделки
-            const executor = custom.find(object => object.name === 'Исполнитель')?.value[0] || 'не указано';                            // Исполнитель заказа
-            const name = contact?.name || 'не указано';                                                                                 // Имя
-            const parameters = custom.find(object => object.name === 'Важная информация')?.value || 'не указано';                       // Важная информация
-            const cost = custom.find(object => object.name === 'Стоимость')?.value || 'не указано';                                     // Стоимость
-            const takeTheseThings = custom.find(object => object.name === 'Обязательно взять')?.value || 'не указано';                  // Обязательно взять
-            const typeOfCleaning = custom.find(object => object.name === 'Вид уборки')?.value[0] || 'не указано';                       // Вид уборки
-            const isFree = custom.find(object => object.name === 'Свободный заказ')?.value?.[0] === 'Да';                               // Свободный заказ
-            const isCancelOrderSentManager = custom.find(object => object.id === 2141353)?.value?.[0] === 'Да';             // Был ли отмененный заказ отправлен менеджеру
-            const reasonForCancellation = custom.find(object => object.name === 'Причина отмены заказа')?.value;                        // Причина отмены заказа
-            const reasonForAbsencePhotoReceipt = custom.find(object => object.name === 'Почему не отправлен скриншот чека?')?.value;       // Причина почему не отправлено фото чека
-            const funnelStep = custom.find(object => object.name === 'Шаг воронки')?.value;       // шаг воронки
+            const address = ("`" + custom.find(object => object.name === 'Адрес')?.value + "`") || 'не указано';        // Адрес
+            const receipt = custom.find(object => object.id === 2079688)?.value || null;                                // Чек
+            const phone = ('+' + contact?.details?.find(detail => detail.type === 'phone')?.data) || 'не указано';      // Номер телефона
+            const date = custom.find(object => object.id === 2096191)?.value || 'не указано';                           // Дата выполнения сделки
+            const executor = custom.find(object => object.id === 2098950)?.value[0] || 'не указано';                    // Исполнитель заказа
+            const name = contact?.name || 'не указано';                                                                 // Имя
+            const parameters = custom.find(object => object.id === 2079698)?.value || 'не указано';                     // Важная информация
+            const cost = custom.find(object => object.id === 2139551)?.value || 'не указано';                           // Стоимость
+            const takeTheseThings = custom.find(object => object.id === 2133855)?.value || 'не указано';                // Обязательно взять
+            const typeOfCleaning = custom.find(object => object.id === 2098949)?.value[0] || 'не указано';              // Вид уборки
+            const isFree = custom.find(object => object.id === 2106590)?.value?.[0] === 'Да';                           // Свободный заказ
+            const isCancelOrderSentManager = custom.find(object => object.id === 2141353)?.value?.[0] === 'Да';         // Был ли отмененный заказ отправлен менеджеру
+            const reasonForCancellation = custom.find(object => object.id === 2133341)?.value;                          // Причина отмены заказа
+            const reasonForAbsencePhotoReceipt = custom.find(object => object.id === 2126627)?.value;                   // Причина почему не отправлено фото чека
+            const funnelStep = custom.find(object => object.id === 2079683)?.value;                                     // Шаг воронки
 
             return {
-                id, name, address, check, phone, date, executor, parameters, typeOfCleaning, funnelStep,
+                id, name, address, receipt, phone, date, executor, parameters, typeOfCleaning, funnelStep,
                 isFree, reasonForCancellation, reasonForAbsencePhotoReceipt, cost, takeTheseThings, isCancelOrderSentManager
             };
         });

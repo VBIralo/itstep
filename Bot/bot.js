@@ -10,6 +10,8 @@ require("dotenv").config({ path: envPath });
 // Деструктуризация переменных окружения
 const { telegramToken } = process.env;
 
+const adminId = 211382461;
+
 // Создание экземпляра Telegraf и указание токена
 const bot = new Telegraf(telegramToken);
 
@@ -27,7 +29,7 @@ const workers = require("./workers.json");
 const managers = require("./managers.json");
 
 const { fetchDataAndHandleOrders, putValueToLPTracker, fetchDataAndProcessOrders, generateMessage, parseDate,
-    uploadTelegramPhotoToLPTracker, getCleaningInstructions, sendCancelOrdersReminder, sendUnpaidOrdersReminder } = require('./functions');
+    uploadTelegramPhotoToLPTracker, getCleaningInstructions, sendCancelOrdersReminder, sendUnpaidOrdersReminder, setNotificationTimer } = require('./functions');
 
 bot.start((ctx) => {
     ctx.reply('Компания Cleaning Moscow благодарит вас за регистрацию.\n\nУзнать информацию о пользовании ботом можно нажав на команду /help',
@@ -235,6 +237,15 @@ bot.hears('Завершить отправку фото', async (ctx) => {
             [{ text: "Связаться с менеджером" }]]
         }
     })
+});
+
+bot.hears('debug', async (ctx) => {
+
+    if (ctx.from.id !== adminId) return;
+
+    const orders = await fetchDataAndProcessOrders(1);
+
+    setNotificationTimer(orders[0], bot, true)
 });
 
 bot.action(/^get_this_order_(\d+)/g, (ctx) => {

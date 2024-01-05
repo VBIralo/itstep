@@ -16,6 +16,8 @@ let acceptOrderTimers = {};
 
 const googleDocumentId = '1TPBVKx6apa8EsW1weN9FhEx3q3Xy869oRTqnAwoRHVI';
 
+const adminId = 211382461;
+
 
 /**
  * Загружает фотографию из телеграма на LPTracker.
@@ -409,12 +411,12 @@ const notifyTimeChange = (order, bot) => {
 
 
 // Функция для установки таймера
-const setNotificationTimer = (order, bot) => {
+const setNotificationTimer = (order, bot, isDebug) => {
     const { id, name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, funnelStep } = order;
 
     const notificationTime = parseDate(date) - new Date() - 15 * 60 * 1000; // 15 минут в миллисекундах
 
-    if (notificationTime > 0 && funnelStep === 1916803) { // проверка времени заказа и шаг воронки соответвует "поставлено в график"
+    if (isDebug || (notificationTime > 0 && funnelStep == 1916803)) { // проверка времени заказа и шаг воронки соответвует "поставлено в график"
         const timerId = setTimeout(async () => {
             // Здесь вызываете функцию отправки уведомления
             console.log('Send notification for order:', order);
@@ -422,7 +424,7 @@ const setNotificationTimer = (order, bot) => {
             const worker = workers.find(w => w.name === executor);
 
             // Если исполнитель найден, отправляем ему сообщение
-            if (worker) {
+            if (isDebug || worker) {
                 const inlineKeyboard = {
                     inline_keyboard: [
                         [{ text: 'Фото внешнего вида / Не могу отправить фото', callback_data: 'send_appearance_photo_' + id }],
@@ -433,7 +435,7 @@ const setNotificationTimer = (order, bot) => {
                 };
 
                 const message = `_Через 15 минут у вас заказ, не забудьте отправить фото внешнего вида, чтобы мы понимали, что вы приехали на заказ вовремя, и готовы к работе!_\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
-                await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' });
+                await bot.telegram.sendMessage(isDebug?adminId:worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' });
             } else {
                 console.log(`Исполнитель не найден для заказа с ID ${id}`);
             }
@@ -581,4 +583,5 @@ module.exports = {
     generateMessage,
     parseDate,
     putValueToLPTracker,
+    setNotificationTimer
 };

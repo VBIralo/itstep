@@ -62,7 +62,7 @@ bot.hears('Неоплаченные заказы', async (ctx) => {
         for (const { id, name, address, receipt, phone, date, executor, parameters, reasonForAbsencePhotoReceipt, reasonForCancellation, cost, takeTheseThings } of orders) {
             let message = generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings });
             const worker = workers.find(w => w.name === executor);
-            if (!receipt && worker && worker.chatId === ctx.from.id && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
+            if (!receipt && date && date !== 'не указано' && parseDate(date) < new Date() && worker && worker.chatId === ctx.from.id && !reasonForAbsencePhotoReceipt && !reasonForCancellation) {
                 message += '\n\nСкриншот чека не добавлено';
 
                 const inlineKeyboard = {
@@ -102,7 +102,7 @@ bot.hears('Заказы на сегодня', async (ctx) => {
 
         for (const { name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, funnelStep } of orders) {
             const worker = workers.find(w => w.name === executor);
-            if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today && funnelStep === 1916803) {
+            if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today && funnelStep == 1916803) {
                 message.push(`\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning }));
                 counter++;
             }
@@ -133,7 +133,7 @@ bot.hears('Заказы на завтра', async (ctx) => {
 
         for (const { name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, funnelStep } of orders) {
             const worker = workers.find(w => w.name === executor);
-            if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow && funnelStep === 1916803) {
+            if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow && funnelStep == 1916803) {
                 message.push(`\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning }));
                 counter++;
             }
@@ -187,7 +187,7 @@ bot.hears('Свободные заказы', async (ctx) => {
         const messages = [];
 
         for (const { id, name, address, phone, date, parameters, isFree, typeOfCleaning, cost, takeTheseThings, funnelStep } of orders) {
-            if (isFree && date && date !== 'не указано' && parseDate(date) >= new Date() && funnelStep === 1916803) {
+            if (isFree && date && date !== 'не указано' && parseDate(date) >= new Date() && funnelStep == 1916803) {
                 messages.push([
                     {
                         inline_keyboard: [
@@ -223,6 +223,20 @@ bot.hears('Связаться с менеджером', async (ctx) => {
     ctx.reply('Контакты менеджеров', keyboard)
 });
 
+bot.hears('Завершить отправку фото', async (ctx) => {
+
+    ctx.reply('Отправка фото повреждений объекта завершена', {
+        reply_markup: {
+            keyboard: [[{ text: "Неоплаченные заказы" }],
+            [{ text: "Заказы на сегодня" }],
+            [{ text: "Заказы на завтра" }],
+            [{ text: "Архив заказов" }],
+            [{ text: "Свободные заказы" }],
+            [{ text: "Связаться с менеджером" }]]
+        }
+    })
+});
+
 bot.action(/^get_this_order_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     const from = ctx.update.callback_query.from;
@@ -235,6 +249,17 @@ bot.action(/^get_this_order_(\d+)/g, (ctx) => {
     })
 });
 
+bot.action(/^send_damage_photo_(\d+)/g, (ctx) => {
+    const leadId = ctx.match[1];
+    setSessionStep(ctx.update.callback_query.from.id, 'damage_photo_' + leadId);
+
+    ctx.reply('Отправьте фото повреждений либо нажмите кнопку "Завершить отправку фото"', {
+        reply_markup: {
+            keyboard: [[{ text: "Завершить отправку фото" }]], resize_keyboard: true
+        }
+    })
+        .then(ctx.answerCbQuery('', true))
+});
 bot.action(/^send_receipt_photo_(\d+)/g, (ctx) => {
     const leadId = ctx.match[1];
     setSessionStep(ctx.update.callback_query.from.id, 'receipt_photo_' + leadId);
@@ -253,8 +278,15 @@ bot.action(/^send_appearance_photo_(\d+)/g, (ctx) => {
 
 bot.on('photo', async (ctx) => {
     const sessionStep = sessions[ctx.message.from.id].step ?? null;
+    const regExpDamage = /^damage_photo_(\d+)/;
     const regExpReceipt = /^receipt_photo_(\d+)/;
     const regExpAppearence = /^appearance_photo_(\d+)/;
+
+    if (sessionStep && regExpDamage.test(sessionStep)) {
+        const leadId = sessionStep.match(regExpDamage)[1];
+
+        await uploadTelegramPhotoToLPTracker(setSessionStep, ctx, leadId, 'damage');
+    }
 
     if (sessionStep && regExpReceipt.test(sessionStep)) {
         const leadId = sessionStep.match(regExpReceipt)[1];
@@ -312,7 +344,7 @@ bot.on('text', async (ctx) => {
 
         console.log('listen', step, actionType, leadId)
         // Редактируем предыдущее сообщение бота с новым текстом
-        await ctx.telegram.sendMessage(ctx.chat.id, `Ваш ответ, почему вы не можете прислать фото, записан:\n_${userReason}_`, {parse_mode: "Markdown"});
+        await ctx.telegram.sendMessage(ctx.chat.id, `Ваш ответ, почему вы не можете прислать фото, записан:\n_${userReason}_`, { parse_mode: "Markdown" });
 
         console.log(leadId, userReason)
 
@@ -322,6 +354,10 @@ bot.on('text', async (ctx) => {
         await setSessionStep(ctx.chat.id, null);
     }
 
+    if (step && step.startsWith('damage_photo')) {
+        ctx.reply('Отправьте фото повреждений либо нажмите кнопку "Завершить отправку фото"')
+    }
+    
     if (step && step.startsWith('cancel_this_order_')) {
         // Здесь обрабатываем ответ пользователя
         const userReason = ctx.message.text;

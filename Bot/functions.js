@@ -32,6 +32,26 @@ const uploadTelegramPhotoToLPTracker = async (setSessionStep, ctx, leadId, type)
         const fileLink = await ctx.telegram.getFileLink(fileData.file_id);
         const fileResponse = await fetch(fileLink);
         const fileBuffer = await fileResponse.buffer();
+        let custom_field_id;
+
+        // для чеков - 2079688
+        // для внешнего вида - 2116594
+        // для фото повреждений - 2144192
+        switch (type) {
+            case 'damage':
+                custom_field_id = 2144192;
+                break;
+            case 'receipt':
+                custom_field_id = 2079688;
+                break;
+            case 'appearance':
+                custom_field_id = 2116594;
+                break;
+
+            default:
+                custom_field_id = 2116594;
+                break;
+        }
 
         const base64Data = fileBuffer.toString('base64');
         console.log(fileData.file_path)
@@ -39,7 +59,7 @@ const uploadTelegramPhotoToLPTracker = async (setSessionStep, ctx, leadId, type)
             name: fileData.file_path.split('/')[1],
             mime: 'image/jpeg',
             data: base64Data,
-            custom_field_id: type === 'receipt' ? 2079688 : 2116594  // для чеков - 2079688 | для внешнего вида - 2116594
+            custom_field_id
         };
 
         const uploadResponse = await fetch(`https://direct.lptracker.ru/lead/${leadId}/file`, {
@@ -56,10 +76,12 @@ const uploadTelegramPhotoToLPTracker = async (setSessionStep, ctx, leadId, type)
 
         if (result?.status == 'success') {
             ctx.reply("Фотография успешно загружена")
-                .then(setSessionStep(ctx.message.from.id, null));
+                .then(() => {
+                    if (type !== 'damage') setSessionStep(ctx.message.from.id, null);
+                });
         } else {
             console.error('Ошибка при загрузке фото:', type)
-            ctx.reply('Произошла ошибка при загрузке фото ' + type === 'receipt' ? 'чека' : 'внешнего вида');
+            ctx.reply('Произошла ошибка при загрузке фото');
         }
     } catch (error) {
         console.error('Ошибка при загрузке фото:', type, error)
@@ -440,7 +462,7 @@ const sendLatestOrderToWorkers = async (order, bot) => {
 
         const message = `Новый заказ:\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning }) + '\n\n_Если заказ не будет отменён в течении 15 минут, то он автоматически будет считаться принятым!_';
 
-        if (worker && funnelStep === 1916803) { // проверка есть ли такой рабочий в списке и шаг воронки соответвует "поставлено в график"
+        if (worker && funnelStep == 1916803) { // проверка есть ли такой рабочий в списке и шаг воронки соответвует "поставлено в график"
             await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' })
                 .then((ctx) => {
                     // Установить таймер на принятие заказа через 15 минут
@@ -558,5 +580,5 @@ module.exports = {
     fetchDataAndProcessOrders,
     generateMessage,
     parseDate,
-    putValueToLPTracker
+    putValueToLPTracker,
 };

@@ -100,9 +100,9 @@ bot.hears('Заказы на сегодня', async (ctx) => {
         let counter = 0;
         const message = [];
 
-        for (const { name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings } of orders) {
+        for (const { name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, funnelStep } of orders) {
             const worker = workers.find(w => w.name === executor);
-            if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today) {
+            if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === today && funnelStep === 1916803) {
                 message.push(`\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning }));
                 counter++;
             }
@@ -131,9 +131,9 @@ bot.hears('Заказы на завтра', async (ctx) => {
         let counter = 0;
         const message = [];
 
-        for (const { name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings } of orders) {
+        for (const { name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, funnelStep } of orders) {
             const worker = workers.find(w => w.name === executor);
-            if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow) {
+            if (date && date !== 'не указано' && worker && worker.chatId === ctx.from.id && parseDate(date).toLocaleDateString('en-GB', localeDateStringParams) === formattedTomorrow && funnelStep === 1916803) {
                 message.push(`\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning }));
                 counter++;
             }
@@ -186,8 +186,8 @@ bot.hears('Свободные заказы', async (ctx) => {
         let counter = 0;
         const messages = [];
 
-        for (const { id, name, address, phone, date, parameters, isFree, typeOfCleaning, cost, takeTheseThings } of orders) {
-            if (isFree && date && date !== 'не указано' && parseDate(date) >= new Date()) {
+        for (const { id, name, address, phone, date, parameters, isFree, typeOfCleaning, cost, takeTheseThings, funnelStep } of orders) {
+            if (isFree && date && date !== 'не указано' && parseDate(date) >= new Date() && funnelStep === 1916803) {
                 messages.push([
                     {
                         inline_keyboard: [

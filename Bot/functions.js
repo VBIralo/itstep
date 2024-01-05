@@ -14,8 +14,7 @@ const previousOrderTimes = {};
 const timers = [];
 let acceptOrderTimers = {};
 
-const googleDocumentId = '1TPBVKx6apa8EsW1weN9FhEx3q3Xy869oRTqnAwoRHVI'; //генеральная уборка
-
+const googleDocumentId = '1TPBVKx6apa8EsW1weN9FhEx3q3Xy869oRTqnAwoRHVI';
 
 
 /**
@@ -389,11 +388,11 @@ const notifyTimeChange = (order, bot) => {
 
 // Функция для установки таймера
 const setNotificationTimer = (order, bot) => {
-    const { id, name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings } = order;
+    const { id, name, address, phone, date, executor, parameters, typeOfCleaning, cost, takeTheseThings, funnelStep } = order;
 
     const notificationTime = parseDate(date) - new Date() - 15 * 60 * 1000; // 15 минут в миллисекундах
 
-    if (notificationTime > 0) {
+    if (notificationTime > 0 && funnelStep === 1916803) { // проверка времени заказа и шаг воронки соответвует "поставлено в график"
         const timerId = setTimeout(async () => {
             // Здесь вызываете функцию отправки уведомления
             console.log('Send notification for order:', order);
@@ -427,7 +426,7 @@ const setNotificationTimer = (order, bot) => {
 // функция для отправки последнего заказа менеджеру
 const sendLatestOrderToWorkers = async (order, bot) => {
     try {
-        const { id, name, address, phone, date, parameters, typeOfCleaning, executor, cost, takeTheseThings } = order;
+        const { id, name, address, phone, date, parameters, typeOfCleaning, executor, cost, takeTheseThings, funnelStep } = order;
 
         const worker = workers.find(w => w.name === executor);
 
@@ -441,7 +440,7 @@ const sendLatestOrderToWorkers = async (order, bot) => {
 
         const message = `Новый заказ:\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning }) + '\n\n_Если заказ не будет отменён в течении 15 минут, то он автоматически будет считаться принятым!_';
 
-        if (worker) {
+        if (worker && funnelStep === 1916803) { // проверка есть ли такой рабочий в списке и шаг воронки соответвует "поставлено в график"
             await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' })
                 .then((ctx) => {
                     // Установить таймер на принятие заказа через 15 минут

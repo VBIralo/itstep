@@ -276,7 +276,7 @@ const fetchDataAndHandleOrders = async (bot) => {
         //await sendLatestOrderToWorkers(orders[0])
 
         await fetchDataAndSetTimers(orders, bot);
-        await fetchDataAndSendLatestOrder(orders);
+        await fetchDataAndSendLatestOrder(orders, bot);
 
         // Проверка изменений во времени заказа
         checkTimeChanges(orders, bot);
@@ -298,6 +298,33 @@ const fetchDataAndSetTimers = async (orders, bot) => {
     }
 }
 
+
+// Функция для загрузки данных из файла
+const loadOrderFunnelStepsFromFile = () => {
+    try {
+        const data = fs.readFileSync('./orderFunnelSteps.json', 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        // Если произошла ошибка при чтении файла или файл не существует, возвращаем пустой объект
+        return {};
+    }
+};
+
+// Функция для сохранения данных в файл
+const saveOrderFunnelStepsToFile = (orderFunnelSteps) => {
+    const data = JSON.stringify(orderFunnelSteps, null, 2);
+    fs.writeFileSync('./orderFunnelSteps.json', data, 'utf8');
+};
+
+// Загрузка данных при запуске приложения
+let orderFunnelSteps = loadOrderFunnelStepsFromFile();
+
+// Функция для обновления шага воронки заказа
+const updateOrderFunnelStep = (orderId, newFunnelStep) => {
+    orderFunnelSteps[orderId] = newFunnelStep;
+    saveOrderFunnelStepsToFile(orderFunnelSteps);
+};
+
 // Функция для опроса сервера и отправки последнего заказа исполнителям
 const fetchDataAndSendLatestOrder = async (orders, bot) => {
     try {
@@ -307,20 +334,16 @@ const fetchDataAndSendLatestOrder = async (orders, bot) => {
             return;
         }
 
-        // Получить последний ID заказа из файла
-        const lastOrderId = readLastOrderId();
-
-        // Если есть новые заказы и последний заказ не определен, отправить последний заказ
+        // Если есть новые заказы, отправить соответствующие заказы
         if (orders.length > 0) {
+            for (const order of orders) {
+                const { id, funnelStep } = order;
 
-            // Получить последний ID заказа из ответа
-            const lastOrderIdFromResponse = orders[0].id;
-
-            if (lastOrderId === null || lastOrderId !== lastOrderIdFromResponse) {
-                sendLatestOrderToWorkers(orders[0], bot);
-
-                // Сохранить ID последнего заказа
-                writeLastOrderId(lastOrderIdFromResponse);
+                // Проверка, изменился ли шаг воронки
+                if (orderFunnelSteps[id] !== funnelStep) {
+                    sendLatestOrderToWorkers(order, bot);
+                    updateOrderFunnelStep(id, funnelStep);
+                }
             }
         }
 
@@ -384,7 +407,7 @@ const checkTimeChanges = (orders, bot) => {
                 const previousOrderTime = previousOrderTimes[orderId];
 
                 // Если время заказа изменилось
-                if (currentOrderTime.getTime() !== previousOrderTime.getTime()) {
+                if (currentOrderTime.getTime() !== previousOrderTime.getTime() && order.funnelStep == 1916803) {
                     notifyTimeChange(order, bot);
                 }
             }
@@ -435,7 +458,7 @@ const setNotificationTimer = (order, bot, isDebug) => {
                 };
 
                 const message = `_Через 15 минут у вас заказ, не забудьте отправить фото внешнего вида, чтобы мы понимали, что вы приехали на заказ вовремя, и готовы к работе!_\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning });
-                await bot.telegram.sendMessage(isDebug?adminId:worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' });
+                await bot.telegram.sendMessage(isDebug ? adminId : worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' });
             } else {
                 console.log(`Исполнитель не найден для заказа с ID ${id}`);
             }
@@ -466,7 +489,7 @@ const sendLatestOrderToWorkers = async (order, bot) => {
 
         if (worker && funnelStep == 1916803) { // проверка есть ли такой рабочий в списке и шаг воронки соответвует "поставлено в график"
             await bot.telegram.sendMessage(worker.chatId, message, { reply_markup: inlineKeyboard, parse_mode: 'Markdown' })
-                .then((ctx) => {
+                .then(async (ctx) => {
                     // Установить таймер на принятие заказа через 15 минут
                     acceptOrderTimers[order.id] = setTimeout(() => {
                         acceptOrderAutomatically(id, ctx, bot);
@@ -507,17 +530,6 @@ const updateTimers = (newOrders, bot) => {
     newOrders.forEach(order => setNotificationTimer(order, bot));
 };
 
-// Функция для чтения ID последнего заказа из файла
-const readLastOrderId = () => {
-    try {
-        const data = fs.readFileSync('lastOrderId.txt', 'utf8');
-        return parseInt(data);
-    } catch (error) {
-        // Если файл не существует или произошла ошибка при чтении, вернуть null
-        return null;
-    }
-};
-
 // функция для автоматического принятия заказа после 15 минут
 const acceptOrderAutomatically = async (orderId, ctx, bot) => {
     try {
@@ -538,11 +550,6 @@ const acceptOrderAutomatically = async (orderId, ctx, bot) => {
     } catch (error) {
         console.error("An error occurred while accepting the order:", error);
     }
-};
-
-// Функция для записи ID последнего заказа в файл
-const writeLastOrderId = (id) => {
-    fs.writeFileSync('lastOrderId.txt', id.toString(), 'utf8');
 };
 
 // Функция для парсинга даты из строки

@@ -537,7 +537,7 @@ const acceptOrderAutomatically = async (orderId, ctx, bot) => {
 
         clearTimeout(acceptOrderTimers[orderId]);
 
-        console.log(orderId, ctx)
+        //console.log(orderId, ctx)
         const inlineKeyboard = {
             inline_keyboard: [
                 [{ text: 'Послушать запись звонка', callback_data: 'listen_to_call_recording_' + orderId }],

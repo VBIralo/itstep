@@ -206,11 +206,13 @@ bot.hears('Свободные заказы', async (ctx) => {
             return ctx.reply('Свободных заказов нет');
         }
 
-        ctx.reply(`Свободных заказов - ${counter}`);
+        ctx.reply(`Свободных заказов - ${counter}`).then(async ()=>{
+            await Promise.all(messages.map(([replyMarkup, message]) => {
+                return ctx.reply(message, { reply_markup: replyMarkup, parse_mode: 'Markdown' });
+            }));
+        })
 
-        await Promise.all(messages.map(([replyMarkup, message]) => {
-            return ctx.reply(message, { reply_markup: replyMarkup, parse_mode: 'Markdown' });
-        }));
+       
     } catch (error) {
         console.error("An error occurred:", error);
         console.error(error.stack);

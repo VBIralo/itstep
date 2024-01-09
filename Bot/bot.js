@@ -157,14 +157,14 @@ bot.hears('Заказы на завтра', async (ctx) => {
 
 bot.hears('Архив заказов', async (ctx) => {
     try {
-        const orders = await fetchDataAndProcessOrders(20);
+        const orders = await fetchDataAndProcessOrders(15);
         const message = [];
         let counter = 0;
 
         for (const { name, address, phone, date, parameters, typeOfCleaning, executor, cost, takeTheseThings } of orders) {
             const worker = workers.find(w => w.name === executor);
             if (date && date !== 'не указано' && parseDate(date) < new Date() && worker && worker.chatId === ctx.from.id) {
-                message.push(`\n\n` + generateMessage({ name, address, phone, date, parameters, executor, cost, takeTheseThings, typeOfCleaning }));
+                message.push(`\n\n` + generateMessage({ name, address, phone, date, parameters, cost, takeTheseThings, typeOfCleaning }));
                 counter++;
             }
         }
@@ -341,7 +341,7 @@ bot.action(/^listen_to_call_recording_(\d+)/g, (ctx) => {
 
 bot.on('text', async (ctx) => {
     // Получаем шаг из сессии пользователя
-    const step = sessions[ctx.message.from.id].step ?? null;
+    const step = sessions[ctx.message.from.id]?.step ?? null;
 
     if ((step && step.startsWith('appearance_photo')) || (step && step.startsWith('receipt_photo'))) {
         // Здесь обрабатываем ответ пользователя
